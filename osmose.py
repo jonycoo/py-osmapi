@@ -9,21 +9,21 @@ import requests
 import json
 
 
-url = 'http://osmose.openstreetmap.fr/en/api/0.2/'
+url = 'http://osmose.openstreetmap.fr/en/api/0.2/errors'
 
 lang = 'en'
 user = 'jonycoo'
 
 
 def get_issues_user(user):
-    return requests.get(url +'user/{}'.format(user)).json()
+    return requests.get(url +'?full=true&username=' + user).json()
 
 
-# def create_bbox(lat, lon, r):
-#     R = float(6371.000785)
+# def create_bbox(lat, lon, radius):
+#     R = float(6371.000785) # R is radius of earth in km
 #     x = lon
 #     y = lat
-#     dy = 360 * r / R
+#     dy = 360 * radius / R
 #     dx = dy * math.cos(math.radians(y))
 #     se = x+dx, y+dy
 #     nw = x-dx, y-dy
@@ -31,37 +31,39 @@ def get_issues_user(user):
 
 
 def get_issues_loc(lat, lon):
-#    bbox = create_bbox(lat, lon, 1)
-    path = '/errors?full=true&lat={}&lon={}'
+    path = '?full=true&lat={}&lon={}'
     path = path.format(lat, lon)
     print(path)
     isDic = requests.get(url + path).json()
-
     return isDic
-
-
-def convert_to_dict(arr):
-    tit_ar = arr['description']
-    err_ar = arr['errors']
-    res = list()
-    for i in range(len(err_ar)):
-        item = dict()
-        for j in range(len(tit_ar)):
-            item[tit_ar[j]] = err_ar[i][j]
-        res.append(item)
-    return res
 
 
 def noteIssue(issue):
     a = 5
 
 
-issues = get_issues_user(user)['issues']
-for issue in issues:
-    print(issue['id'])
+issues = get_issues_user(user)
+print(issues)
+for issue in issues['errors']:
+    print(issue[2])
 
 issuesl = get_issues_loc(49.14161, 9.22224)
-issuesl = convert_to_dict(issuesl)
-for issue in issuesl:
-    print(issue['error_id'])
+for issue in issuesl['errors']:
+    print(issue[2])
 
+'''
+    0  : "lat",
+    1  : "lon",
+    2  : "error_id",
+    3  : "item",
+    4  : "source",
+    5  : "class",
+    6  : "elems",
+    7  : "subclass",
+    8  : "subtitle",
+    9  : "title",
+    10 : "level",
+    11 : "update",
+    12 : "username"
+
+'''
