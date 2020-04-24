@@ -6,9 +6,7 @@ from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-
 logger = logging.getLogger(__name__)
-
 
 try:
     TOKEN = os.environ['TEST_BOT']
@@ -16,8 +14,8 @@ except KeyError:
     logger.exception('no "TEST_BOT" token in environment variables.', 'Exit program')
     exit()
 
-CHOOSING, TYPING_REPLY, CANCEL = range(3)
 
+CHOOSING, TYPING_REPLY, CANCEL = range(3)
 reply_keyboard = [['OSM-Name', 'Language', 'Cancel']]
 markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
 
@@ -32,18 +30,11 @@ def start(update, context):
 def help(update, context):
     """Send a message when the command /help is issued."""
     update.message.reply_text('Help!')
-
-
-def echo(update, context):
-    """Echo the user message."""
-    update.message.reply_text(update.message.text)
     
     
 def location(update, context):
     """Send location"""
     update.message.reply_venue(float(26.1949226), float(127.6955086), 'bug standort', 'address of bug')
-    
-# def message(update, context):
 
 
 def settings(update, context):
@@ -104,7 +95,7 @@ def main():
              TYPING_REPLY: [MessageHandler(Filters.text, received_info)]
              },
         fallbacks=[MessageHandler(Filters.regex('^Cancel$'), cancel)]
-        )
+        , conversation_timeout=50)
 
     # on different commands - answer in Telegram
     dp.add_handler(CommandHandler("start", start))

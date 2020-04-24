@@ -14,7 +14,9 @@ bot.
 """
 
 import logging
+import os
 
+from telegram import (ReplyKeyboardMarkup, ReplyKeyboardRemove, KeyboardButton)
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
                           ConversationHandler)
 
@@ -24,62 +26,89 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 logger = logging.getLogger(__name__)
 
-CHOOSING, TYPING_REPLY, TYPING_CHOICE = range(3)
-
-
-
-def facts_to_str(user_data):
-    facts = list()
-
-    for key, value in user_data.items():
-        facts.append('{} - {}'.format(key, value))
-
-    return "\n".join(facts).join(['\n', '\n'])
+GENDER, PHOTO, LOCATION, BIO = range(4)
 
 
 def start(update, context):
+    reply_keyboard = [['Boy', 'Girl', KeyboardButton('other', request_location=True)]]
+
     update.message.reply_text(
-        "Hello {}, wellcome to Osmote, a Telegram bot to receive Osmose"
-        "Errors on your last edited objects. First please tell me your OSMname"
-        .format(update.effective_user.full_name))
+        'Hi! My name is Professor Bot. I will hold a conversation with you. '
+        'Send /cancel to stop talking to me.\n\n'
+        'Are you a boy or a girl?',
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
 
-    return CHOOSING
-
-
-def regular_choice(update, context):
-    text = update.message.text
-    context.user_data['choice'] = text
-    update.message.reply_text(
-        'please tell me your {} '.format(text.lower()))
-
-    return CHOOSING
+    return GENDER
 
 
+def gender(update, context):
+    user = update.message.from_user
+    logger.info("Gender of %s: %s", user.first_name, update.message.text)
+    update.message.reply_text('I see! Please send me a photo of yourself, '
+                              'so I know what you look like, or send /skip if you don\'t want to.',
+                              reply_markup=ReplyKeyboardRemove())
 
-def received_information(update, context):
-    user_data = context.user_data
-    text = update.message.text
-    category = user_data['choice']
-    user_data[category] = text
-    del user_data['choice']
-
-    update.message.reply_text("Neat! Just so you know, this is what you already told me:"
-                              "{} You can tell me more, or change your opinion"
-                              " on something.".format(facts_to_str(user_data)))
-
-    return CHOOSING
+    return PHOTO
 
 
-def done(update, context):
-    user_data = context.user_data
-    if 'choice' in user_data:
-        del user_data['choice']
+def photo(update, context):
+    user = update.message.from_user
+    photo_file = update.message.photo[-1].get_file()
+    photo_file.download('user_photo.jpg')
+    logger.info("Photo of %s: %s", user.first_name, 'user_photo.jpg')
 
-    update.message.reply_text("I learned these facts about you:"
-                              "{}"
-                              "Until next time!".format(facts_to_str(user_data)))
+    repl_markup = [[KeyboardButton('location', request_location=True)], ['skip']]
 
-    user_data.clear()
+    update.message.reply_text('Gorgeous! Now, send me your location please, '
+                              'or send /skip if you don\'t want to.',
+                              reply_markup=ReplyKeyboardMarkup(repl_markup, one_time_keyboard=True))
+
+    return LOCATION
+
+
+def skip_photo(update, context):
+    user = update.message.from_user
+    logger.info("User %s did not send a photo.", user.first_name)
+    update.message.reply_text('I bet you look great! Now, send me your location please, '
+                              'or send /skip.')
+
+    return LOCATION
+
+
+def location(update, context):
+    user = update.message.from_user
+    user_location = update.message.location
+    logger.info("Location of %s: %f / %f", user.first_name, user_location.latitude,
+                user_location.longitude)
+    update.message.reply_text('Maybe I can visit you sometime! '
+                              'At last, tell me something about yourself.')
+
+    return BIO
+
+
+def skip_location(update, context):
+    user = update.message.from_user
+    logger.info("User %s did not send a location.", user.first_name)
+    update.message.reply_text('You seem a bit paranoid! '
+                              'At last, tell me something about yourself.')
+
+    return BIO
+
+
+def bio(update, context):
+    user = update.message.from_user
+    logger.info("Bio of %s: %s", user.first_name, update.message.text)
+    update.message.reply_text('Thank you! I hope we can talk again some day.')
+
+    return ConversationHandler.END
+
+
+def cancel(update, context):
+    user = update.message.from_user
+    logger.info("User %s canceled the conversation.", user.first_name)
+    update.message.reply_text('Bye! I hope we can talk again some day.',
+                              reply_markup=ReplyKeyboardRemove())
+
     return ConversationHandler.END
 
 
@@ -89,29 +118,37 @@ def error(update, context):
 
 
 def main():
+    try:
+        TOKEN = os.environ['TEST_BOT']
+    except KeyError:
+        logger.exception('no "TEST_BOT" token in environment variables.', 'Exit program')
+        exit()
+
     # Create the Updater and pass it your bot's token.
     # Make sure to set use_context=True to use the new context based callbacks
     # Post version 12 this will no longer be necessary
-    updater = Updater('819692690:AAGTNDg1DXBQsQkpecrmpIKdOJbLOhXztHc', use_context=True)
+    updater = Updater(TOKEN, use_context=True)
 
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
 
-    # Add conversation handler with the states CHOOSING, TYPING_CHOICE and TYPING_REPLY
+    # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
 
         states={
-            CHOOSING: [MessageHandler(Filters.regex('^(OSMname|Language)$'),
-                                      regular_choice)
-                       ],
+            GENDER: [MessageHandler(Filters.regex('^(Boy|Girl|Other)$'), gender)],
 
-            TYPING_REPLY: [MessageHandler(Filters.text,
-                                          received_information),
-                           ]
+            PHOTO: [MessageHandler(Filters.photo, photo),
+                    CommandHandler('skip', skip_photo)],
+
+            LOCATION: [MessageHandler(Filters.location, location),
+                       CommandHandler('skip', skip_location)],
+
+            BIO: [MessageHandler(Filters.text, bio)]
         },
 
-        fallbacks=[MessageHandler(Filters.regex('^Done$'), done)]
+        fallbacks=[CommandHandler('cancel', cancel)]
     )
 
     dp.add_handler(conv_handler)
