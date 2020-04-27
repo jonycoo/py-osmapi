@@ -1,8 +1,9 @@
 import os
 import logging
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Location
+import osmose
+from telegram import *
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
-                          ConversationHandler)
+                          ConversationHandler, CallbackQueryHandler)
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -24,17 +25,47 @@ markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
 # context. Error handlers also receive the raised TelegramError object in error.
 def start(update, context):
     """Send a message when the command /start is issued."""
-    update.message.reply_text('Hi!')
+    help(update, context)
 
 
 def help(update, context):
     """Send a message when the command /help is issued."""
-    update.message.reply_text('Help!')
+    update.message.reply_text('Send me a location, I will give you some Issues near this location.',
+                              'send /user <username> ,'
+                              ' I will give you some Issues where this user was the last editor')
     
     
-def location(update, context):
-    """Send location"""
-    update.message.reply_venue(float(26.1949226), float(127.6955086), 'bug standort', 'address of bug')
+def location(update: Update, context):
+    loc: Location = update.message.location
+    issues = osmose.Issue.gen_issue(osmose.get_issues_loc(loc.latitude, loc.longitude))
+    for issue in issues:
+        send_issue(update.message.bot, update.effective_chat.id, issue)
+    logger.info('executed location() method in bot.py')
+
+
+def user_issue(update: Update, context):
+    user = context.args[0]
+    issues = osmose.Issue.gen_issue(osmose.get_issues_user(user))
+    for issue in issues:
+        send_issue(update.message.bot, update.effective_chat.id, issue)
+    logger.info('executed user_issue() method in bot.py')
+
+
+def send_issue(bot: Bot, chat_id, issue: osmose.Issue):
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('Location', callback_data=issue.id),
+                                      InlineKeyboardButton('Welt', callback_data=5)]])
+
+    bot.sendMessage(chat_id, issue.__str__(), reply_markup=keyboard)
+
+
+def button(update: Update, context):
+    query: CallbackQuery = update.callback_query
+    query.answer()
+    query.edit_message_text('selected ..')
+    print(query.data)
+    issue = osmose.get_issue(query.data)
+    query.bot.sendLocation(update.effective_chat.id, issue.lat, issue.lon,
+                           reply_to_message_id=query.message.message_id)
 
 
 def settings(update, context):
@@ -94,13 +125,16 @@ def main():
              CHOOSING: [MessageHandler(Filters.regex('^(OSM-Name|Language)$'), set_choice)],
              TYPING_REPLY: [MessageHandler(Filters.text, received_info)]
              },
-        fallbacks=[MessageHandler(Filters.regex('^Cancel$'), cancel)]
-        , conversation_timeout=50)
+        fallbacks=[MessageHandler(Filters.regex('^Cancel$'), cancel)],
+        conversation_timeout=50)
 
     # on different commands - answer in Telegram
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("help", help))
-    dp.add_handler(CommandHandler('location', location))
+    dp.add_handler(CommandHandler('user', user_issue))
+    #dp.add_handler(set_handler)
+    dp.add_handler(CallbackQueryHandler(button))
+    dp.add_handler(MessageHandler(Filters.location, location))
 
     # on non-command i.e message - echo the message on Telegram
     # dp.add_handler(MessageHandler(Filters.text, echo))
@@ -110,6 +144,9 @@ def main():
 
     # Start the Bot
     updater.start_polling()
+
+    #issue_lst = osmose.Issue.gen_issue(osmose.get_issues_user('jonycoo'))
+    #send_issue(dp.bot, '343129198', next(issue_lst))
 
     # Run the bot until you press Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT. This should be used most of the time, since
