@@ -8,7 +8,7 @@ import logging
 import requests
 import json
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(lineno)d - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 URL = 'http://osmose.openstreetmap.fr/en/api/0.2'
@@ -29,31 +29,69 @@ class Issue:
         return self.lat, self.lon
 
     @classmethod
-    def from_list_issue(cls, lst):
+    def from_api_issue(cls, lst):
         elems = str(lst[6]).split('_')
         return cls(lst[0], lst[1], lst[2], lst[9], lst[8], elems)
 
     @classmethod
-    def gen_issue(cls, issue_lst):
+    def to_issue_list(cls, issue_lst):
+        ret = []
         for issue in issue_lst['errors']:
-            yield cls.from_list_issue(issue)
+            ret.append(cls.from_api_issue(issue))
+        return ret
 
     def __str__(self):
-        return '"{}" Issue at: {}, elems: {}'.format(self.title, self.loc, self.elems)
+        return '"{}" Issue at: {}, elems: {} ,more: /{}'.format(self.title, self.loc, self.elems, 'iss' + self.id)
 
 
 def get_issues_user(user):
-    return requests.get(URL + '/errors?full=true&username={}&limit=20'.format(user)).json()
+    logger.debug('Entering: get_issues_user')
+    lst = requests.get(URL + '/errors?full=true&username={}&limit=50'.format(user)).json()
+    logger.debug(lst)
+    return Issue.to_issue_list(lst)
 
 
 def get_issues_loc(lat, lon):
-    path = '/errors?full=true&lat={}&lon={}&limit=20'
+    logger.debug('Entering: get_issues_loc')
+    path = '/errors?full=true&lat={}&lon={}&limit=50'
     path = path.format(lat, lon)
-    return requests.get(URL + path).json()
+    return Issue.to_issue_list(requests.get(URL + path).json())
 
 
 def get_issue(issue_id):
+    logger.debug('Entering: get_issue')
+    '''returns single issue with more info'''
     as_json = requests.get(URL + '/error/{}'.format(issue_id)).json()
     print(as_json)
     return Issue(as_json['lat'], as_json['lon'], issue_id,
                  as_json['title'], as_json['subtitle'], as_json['elems_id'].split('_'))
+
+
+class Pager:
+    def __init__(self, lst, step):
+        self.lst = lst
+        self.index = 0
+        self.step = step
+
+    def next(self):
+        ret = self.lst[self.index: self.index + self.step]
+        self.index += self.step
+        logger.debug('pager index after next:' + str(self.index))
+        return ret
+
+    def prev(self):
+        ret = self.lst[self.index - self.step: self.index]
+        self.index -= self.step
+        logger.debug('pager index after prev:' + str(self.index))
+        return ret
+
+    @staticmethod
+    def to_msg(lst):
+        message = ''
+        for item in lst:
+            message += str(item) + '\n\n'
+        logger.debug(message)
+        return message
+
+    def curr(self):
+        return self.lst[self.index - self.step: self.index]
