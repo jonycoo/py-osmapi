@@ -38,6 +38,7 @@ class Issue:
         ret = []
         for issue in issue_lst['errors']:
             ret.append(cls.from_api_issue(issue))
+        logger.debug('Issue Items: ' + str(len(ret)))
         return ret
 
     def __str__(self):
@@ -46,7 +47,7 @@ class Issue:
 
 def get_issues_user(user):
     logger.debug('Entering: get_issues_user')
-    lst = requests.get(URL + '/errors?full=true&username={}&limit=50'.format(user)).json()
+    lst = requests.get(URL + '/errors?full=true&username={}&limit=53'.format(user)).json()
     logger.debug(lst)
     return Issue.to_issue_list(lst)
 
@@ -75,11 +76,11 @@ class Pager:
 
     def next(self):
         ret = []
-        if (len(self.lst) - self.index) % self.step:
+        if (len(self.lst) - self.index) < self.step:
             ret = self.lst[self.index:]
         else:
-            ret = self.lst[self.index: (self.index + self.step)]
             self.index += self.step
+            ret = self.lst[self.index: (self.index + self.step)]
         logger.debug('pager index after next:' + str(self.index))
         return ret
 
