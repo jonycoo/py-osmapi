@@ -74,20 +74,23 @@ class Pager:
         self.step = step
 
     def next(self):
-        if self.index + self.step > len(self.lst):
-            self.index = 0
+        ret = []
+        if (len(self.lst) - self.index) % self.step:
+            ret = self.lst[self.index:]
         else:
+            ret = self.lst[self.index: (self.index + self.step)]
             self.index += self.step
-        ret = self.lst[self.index: self.index + self.step]
         logger.debug('pager index after next:' + str(self.index))
         return ret
 
     def prev(self):
-        if self.index - 2*self.step < 0:
-            self.index = len(self.lst) - self.step
-        else:
+        ret = []
+        if self.index > 0:
+            ret = self.lst[(self.index - self.step): self.index]
             self.index -= self.step
-        ret = self.lst[(self.index - 2*self.step): (self.index - self.step)]
+        else:
+            ret = self.lst[(self.index - self.step): self.index]
+            self.index = 0
         logger.debug('pager index after prev:' + str(self.index))
         return ret
 
