@@ -70,18 +70,24 @@ def get_issue(issue_id):
 class Pager:
     def __init__(self, lst, step):
         self.lst = lst
-        self.index = 0
+        self.index = step * (-1)
         self.step = step
 
     def next(self):
+        if self.index + self.step > len(self.lst):
+            self.index = 0
+        else:
+            self.index += self.step
         ret = self.lst[self.index: self.index + self.step]
-        self.index += self.step
         logger.debug('pager index after next:' + str(self.index))
         return ret
 
     def prev(self):
-        ret = self.lst[self.index - self.step: self.index]
-        self.index -= self.step
+        if self.index - 2*self.step < 0:
+            self.index = len(self.lst) - self.step
+        else:
+            self.index -= self.step
+        ret = self.lst[(self.index - 2*self.step): (self.index - self.step)]
         logger.debug('pager index after prev:' + str(self.index))
         return ret
 

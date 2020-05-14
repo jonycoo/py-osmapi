@@ -57,40 +57,31 @@ def send_issue(bot: Bot, chat_id, issue: osmose.Issue):
 def prepKeyboard(iss_lst):
     #erstelle ein button je item in iss_lst aber max 5 je zeile
     keyboard = ''
-    #for item in iss_lst:
+    prep_keyboard = [[InlineKeyboardButton("Prev", callback_data='prev'),
+                      InlineKeyboardButton("Next", callback_data='next')]]
+    '''row = []
+    for item in iss_lst:'''
+    return InlineKeyboardMarkup(prep_keyboard)
 
 
 def send_issues(bot: Bot, chat_id, pager):
     logger.debug('Entering: send_issues')
-    keyboard = InlineKeyboardMarkup([  # Temporary Solution
-                                    [InlineKeyboardButton("Next", callback_data='next'),
-                                     InlineKeyboardButton("Prev", callback_data='prev')],
-
-                                    [InlineKeyboardButton("1", callback_data='1'),
-                                     InlineKeyboardButton("2", callback_data='2'),
-                                     InlineKeyboardButton("3", callback_data='3'),
-                                     InlineKeyboardButton("4", callback_data='4'),
-                                     InlineKeyboardButton("5", callback_data='5')],
-
-                                    [InlineKeyboardButton("6", callback_data='6'),
-                                     InlineKeyboardButton("7", callback_data='7'),
-                                     InlineKeyboardButton("8", callback_data='8'),
-                                     InlineKeyboardButton("9", callback_data='9'),
-                                     InlineKeyboardButton("10", callback_data='10')]])
-
+    keyboard = prepKeyboard(pager)
     bot.send_message(chat_id, osmose.Pager.to_msg(pager.next()), reply_markup=keyboard)
 
 
 def next_iss(query, context: CallbackContext):
     logger.debug('in next_iss')
-    iss_msg = osmose.Pager.to_msg(context.user_data['list'].next())
-    query.edit_message_text(iss_msg)
+    nx_pg = context.user_data['list'].next()
+    iss_msg = osmose.Pager.to_msg(nx_pg)
+    query.edit_message_text(iss_msg, reply_markup=prepKeyboard(nx_pg))
 
 
-def prev_iss(query, context: CallbackContext):
+def prev_iss(query: CallbackQuery, context: CallbackContext):
     logger.debug('in prev_iss')
-    iss_msg = osmose.Pager.to_msg(context.user_data['list'].prev())
-    query.edit_message_text(iss_msg)
+    pv_pg = context.user_data['list'].prev()
+    iss_msg = osmose.Pager.to_msg(pv_pg)
+    query.edit_message_text(iss_msg, reply_markup=prepKeyboard(pv_pg))
 
 
 def more_iss(query, context: CallbackContext):
