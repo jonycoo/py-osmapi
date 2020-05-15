@@ -104,4 +104,5 @@ class Pager:
         return message
 
     def curr(self):
-        return self.lst[self.index - self.step: self.index]
+        ret = self.lst[self.index: (self.index + self.step)]
+        return ret
