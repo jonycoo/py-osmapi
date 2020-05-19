@@ -73,35 +73,43 @@ def send_issues(bot: Bot, chat_id, pager):
     logger.debug('Entering: send_issues')
     pager.next()
     keyboard = prepKeyboard(pager)
-    bot.send_message(chat_id, osmose.Pager.to_msg(pager.curr()), reply_markup=keyboard)
+    msg = osmose.Pager.to_msg(pager.curr())
+    logger.debug('send list of issues')
+    bot.send_message(chat_id, msg, reply_markup=keyboard, parse_mode=ParseMode.HTML)
 
 
 def next_iss(query, context: CallbackContext):
     logger.debug('in next_iss')
     nx_pg = context.user_data['list'].next()
     iss_msg = osmose.Pager.to_msg(nx_pg)
-    query.edit_message_text(iss_msg, reply_markup=prepKeyboard(context.user_data['list']))
+    query.edit_message_text(iss_msg, reply_markup=prepKeyboard(context.user_data['list']), parse_mode=ParseMode.HTML)
 
 
 def prev_iss(query: CallbackQuery, context: CallbackContext):
     logger.debug('in prev_iss')
     pv_pg = context.user_data['list'].prev()
     iss_msg = osmose.Pager.to_msg(pv_pg)
-    query.edit_message_text(iss_msg, reply_markup=prepKeyboard(context.user_data['list']))
+    query.edit_message_text(iss_msg, reply_markup=prepKeyboard(context.user_data['list']), parse_mode=ParseMode.HTML)
 
 
-def more_iss(query, context: CallbackContext):
+def more_iss(query: CallbackQuery, context: CallbackContext):
     '''reply more details of the Issue'''
     logger.debug('in more_iss')
     lst = context.user_data['list'].curr()
     iss = osmose.get_issue(lst[int(query.data)].id)
-    query.edit_message_text(str(iss))
+    context.user_data['det_iss'] = iss
+    del context.user_data['list']
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('Location', callback_data='loc' )]])
+    query.edit_message_text(str(iss), reply_markup=keyboard, parse_mode=ParseMode.HTML)
 
 
-def iss_loc(query):
-    issue = osmose.get_issue(query.data)
-    query.bot.sendLocation(query.chat_instance, issue.lat, issue.lon,
-                           reply_to_message_id=query.message.message_id)
+def iss_loc(query, context):
+    issue = context.user_data['det_iss']
+    link = InlineKeyboardMarkup([[InlineKeyboardButton('OSM', issue.osm_url())]])
+    query.edit_message_text(query.message.text, parse_mode=ParseMode.HTML)
+    query.bot.sendLocation(query.message.chat_id, issue.lat, issue.lon,
+                           reply_to_message_id=query.inline_message_id,
+                           reply_markup=link)
 
 
 def button(update: Update, context):
@@ -111,6 +119,8 @@ def button(update: Update, context):
         next_iss(query, context)
     elif query.data == 'prev':
         prev_iss(query, context)
+    elif query.data == 'loc':
+        iss_loc(query, context)
     else:
         more_iss(query, context)
     query.answer()

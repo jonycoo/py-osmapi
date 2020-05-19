@@ -7,6 +7,8 @@ Documentation, License etc.
 import logging
 import requests
 import json
+from operator import itemgetter
+import osm_util
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(lineno)d - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -17,8 +19,8 @@ lang = 'en'
 
 class Issue:
     def __init__(self, lat, lon, e_id, title, subtitle, elems):
-        self.lat = lat
-        self.lon = lon
+        self.lat = float(lat)
+        self.lon = float(lon)
         self.id = e_id
         self.title = title
         self.subtitle = subtitle
@@ -30,7 +32,7 @@ class Issue:
 
     @classmethod
     def from_api_issue(cls, lst):
-        elems = str(lst[6]).split('_')
+        elems = str(lst[6]).split("_")
         return cls(lst[0], lst[1], lst[2], lst[9], lst[8], elems)
 
     @classmethod
@@ -41,8 +43,22 @@ class Issue:
         logger.debug('Issue Items: ' + str(len(ret)))
         return ret
 
+    @classmethod
+    def detail_issue(cls, lat, lon, e_id, title, subtitle, elems, bbox):
+        '''bbox format: (min_lon, min_lat, max_lon, max_lat)'''
+        iss = cls(lat, lon, e_id, title, subtitle, elems)
+        iss.bbox = bbox
+        return iss
+
+    def __repr__(self):
+        return json.dumps(self.__dict__)
+
     def __str__(self):
-        return '"{}" Issue at: {}, elems: {} ,more: /{}'.format(self.title, self.loc, self.elems, 'iss' + self.id)
+        return '"{}" Issue at: <a href="{}">{}</a>, elems: {} '\
+            .format(self.title, self.osm_url(), self.loc, [str(elem) for elem in self.elems])
+
+    def osm_url(self):
+        return "https://osm.org/#map=18/{}/{}&layers=ND".format(self.lat, self.lon)
 
 
 def get_issues_user(user):
@@ -56,16 +72,23 @@ def get_issues_loc(lat, lon):
     logger.debug('Entering: get_issues_loc')
     path = '/errors?full=true&lat={}&lon={}&limit=50'
     path = path.format(lat, lon)
-    return Issue.to_issue_list(requests.get(URL + path).json())
+    lst = requests.get(URL + path).json()
+    return Issue.to_issue_list(lst)
 
 
 def get_issue(issue_id):
     logger.debug('Entering: get_issue')
     '''returns single issue with more info'''
     as_json = requests.get(URL + '/error/{}'.format(issue_id)).json()
-    print(as_json)
-    return Issue(as_json['lat'], as_json['lon'], issue_id,
-                 as_json['title'], as_json['subtitle'], as_json['elems_id'].split('_'))
+    logger.debug(as_json)
+    bbox = itemgetter('minlon', 'minlat', 'maxlon', 'maxlat')(as_json)
+    elems = []
+    for elem in as_json['elems']:
+        elems.append(osm_util.Element(elem['id'], elem['type'], elem['tags']))
+
+    issue = Issue.detail_issue(as_json['lat'], as_json['lon'], issue_id,
+                               as_json['title'], as_json['subtitle'], elems, bbox)
+    return issue
 
 
 class Pager:
