@@ -13,7 +13,7 @@ import osm_util
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(lineno)d - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-URL = 'http://osmose.openstreetmap.fr/en/api/0.2'
+URL = 'http://osmose.openstreetmap.fr/en/api/0.3beta'
 lang = 'en'
 
 
@@ -32,13 +32,24 @@ class Issue:
 
     @classmethod
     def from_api_issue(cls, lst):
-        elems = str(lst[6]).split("_")
-        return cls(lst[0], lst[1], lst[2], lst[9], lst[8], elems)
+        #nodes, ways, relations
+        elems = []
+        keys = {'nodes': 'node', 'ways': 'way', 'relations': 'rel'}
+        for key in lst['osm_ids'].keys():
+            i_type = keys[key]
+            for i_id in lst['osm_ids'][key]:
+                elems.append(osm_util.Element(i_id, i_type, None))
+        ret = cls(lst['lat'], lst['lon'], lst['id'], lst['title']['auto'], lst['subtitle'], elems)
+        return ret
+
+    def __elem_id(self):
+        pass
 
     @classmethod
     def to_issue_list(cls, issue_lst):
+        logger.debug('to issue list')
         ret = []
-        for issue in issue_lst['errors']:
+        for issue in issue_lst['issues']:
             ret.append(cls.from_api_issue(issue))
         logger.debug('Issue Items: ' + str(len(ret)))
         return ret
@@ -63,14 +74,14 @@ class Issue:
 
 def get_issues_user(user):
     logger.debug('Entering: get_issues_user')
-    lst = requests.get(URL + '/errors?full=true&username={}&limit=53'.format(user)).json()
+    lst = requests.get(URL + '/issues?full=true&username={}&limit=53'.format(user)).json()
     logger.debug(lst)
     return Issue.to_issue_list(lst)
 
 
 def get_issues_loc(lat, lon):
-    logger.debug('Entering: get_issues_loc')
-    path = '/errors?full=true&lat={}&lon={}&limit=50'
+    logger.debug('Entering: get_issues_loc with [lat:{}, lon:{}'.format(lat, lon))
+    path = '/issues?full=true&lat={}&lon={}&limit=50'
     path = path.format(lat, lon)
     lst = requests.get(URL + path).json()
     return Issue.to_issue_list(lst)
@@ -79,7 +90,7 @@ def get_issues_loc(lat, lon):
 def get_issue(issue_id):
     logger.debug('Entering: get_issue')
     '''returns single issue with more info'''
-    as_json = requests.get(URL + '/error/{}'.format(issue_id)).json()
+    as_json = requests.get(URL + '/issue/{}'.format(issue_id)).json()
     logger.debug(as_json)
     bbox = itemgetter('minlon', 'minlat', 'maxlon', 'maxlat')(as_json)
     elems = []

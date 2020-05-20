@@ -30,11 +30,12 @@ def help(update, context):
                               ' I will give you some Issues where this user was the last editor')
     
     
-def location(update: Update, context):
+def loc_issue(update: Update, context):
     loc: Location = update.message.location
     issues = osmose.get_issues_loc(loc.latitude, loc.longitude)
-    for issue in issues:
-        send_issue(update.message.bot, update.effective_chat.id, issue)
+    pager = osmose.Pager(issues, 10)
+    context.user_data['list'] = pager
+    send_issues(update.message.bot, update.effective_chat.id, pager)
     logger.info('executed location() method in bot.py')
 
 
@@ -42,6 +43,7 @@ def user_issue(update: Update, context: CallbackContext):
     logger.debug('Entering: user_issue')
     user = context.args[0]
     issues = osmose.get_issues_user(user)
+    logger.debug(issues)
     pager = osmose.Pager(issues, 10)
     context.user_data['list'] = pager
     send_issues(update.message.bot, update.effective_chat.id, pager)
@@ -147,7 +149,7 @@ def main():
     dp.add_handler(CommandHandler("help", help))
     dp.add_handler(CommandHandler('user', user_issue))
     dp.add_handler(CallbackQueryHandler(button))
-    dp.add_handler(MessageHandler(Filters.location, location))
+    dp.add_handler(MessageHandler(Filters.location, loc_issue))
 
     # on non-command i.e message - echo the message on Telegram
     # dp.add_handler(MessageHandler(Filters.text, echo))
