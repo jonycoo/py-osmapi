@@ -18,48 +18,40 @@ lang = 'en'
 
 
 class Issue:
-    def __init__(self, lat, lon, e_id, title, subtitle, elems):
+    """
+    represents an Issue at Open Street Map
+    """
+
+    def __init__(self, lat: float, lon: float, e_id: str, title: str,
+                 subtitle: str, elems: list, bbox=None):
+        """
+            Attributes
+            ----------
+            lat: float
+                Latitude
+            lon: float
+                Longitude
+            e_id: str
+                error_id from issue provider
+            title: str
+                Issue title
+            subtitle: str
+                subtitle
+
+        """
+
         self.lat = float(lat)
         self.lon = float(lon)
         self.id = e_id
         self.title = title
         self.subtitle = subtitle
         self.elems = elems
+        self.bbox = bbox or (0.0, 0.0, 0.0, 0.0)
 
     @property
-    def loc(self):
+    def loc(self) -> tuple:
+        """ location (lat, lon)"""
         return self.lat, self.lon
-
-    @classmethod
-    def from_api_issue(cls, lst):
-        #nodes, ways, relations
-        elems = []
-        keys = {'nodes': 'node', 'ways': 'way', 'relations': 'rel'}
-        for key in lst['osm_ids'].keys():
-            i_type = keys[key]
-            for i_id in lst['osm_ids'][key]:
-                elems.append(osm_util.Element(i_id, i_type, None))
-        ret = cls(lst['lat'], lst['lon'], lst['id'], lst['title']['auto'], lst['subtitle'], elems)
-        return ret
-
-    def __elem_id(self):
-        pass
-
-    @classmethod
-    def to_issue_list(cls, issue_lst):
-        logger.debug('to issue list')
-        ret = []
-        for issue in issue_lst['issues']:
-            ret.append(cls.from_api_issue(issue))
-        logger.debug('Issue Items: ' + str(len(ret)))
-        return ret
-
-    @classmethod
-    def detail_issue(cls, lat, lon, e_id, title, subtitle, elems, bbox):
-        '''bbox format: (min_lon, min_lat, max_lon, max_lat)'''
-        iss = cls(lat, lon, e_id, title, subtitle, elems)
-        iss.bbox = bbox
-        return iss
 
     def __repr__(self):
         return json.dumps(self, default=lambda o: o.__dict__)
@@ -72,25 +64,92 @@ class Issue:
         return "https://osm.org/#map=18/{}/{}&layers=ND".format(self.lat, self.lon)
 
 
-def get_issues_user(user):
+def get_issues_user(user: str) -> list:  # future allows arbitrary arguments specifying country, etc.
+    # FIXME raise exception for empty result
+    """
+        searches for Issues of whom the user is the last editor
+
+        Attributes
+        ----------
+        user : str
+            osm username
+
+        Returns
+        -------
+        list[Issue]
+            up to 50 Issues found there.
+    """
+
     logger.debug('Entering: get_issues_user')
     lst = requests.get(URL + '/issues?full=true&username={}&limit=53'.format(user)).json()
     logger.debug(lst)
-    return Issue.to_issue_list(lst)
+    return __to_issue_list(lst)
 
 
-def get_issues_loc(lat, lon):
+def get_issues_loc(lat: float, lon: float, rad: int) -> list:
+    """
+    searches for Issues around a Location
+
+    Attributes
+    ----------
+    lat : float
+        Latitude
+    lon : float
+        Longitude
+    rad : int/float
+        search Radius in meters
+
+    Returns
+    -------
+    list[Issue]
+        up to 50 Issues found there.
+    """
+
     logger.debug('Entering: get_issues_loc with (lat:{}, lon:{})'.format(lat, lon))
-    bbox = osm_util.create_bbox(lat, lon, 500)
+    bbox = osm_util.create_bbox(lat, lon, rad)
     path = '/issues?full=true&bbox={},{},{},{}&limit=50'
     path = path.format(*bbox)
     lst = requests.get(URL + path).json()
-    return Issue.to_issue_list(lst)
+    return __to_issue_list(lst)
 
 
-def get_issue(issue_id):
+def __to_issue_list(issue_lst: dict) -> list:
+    logger.debug('to issue list')
+    lst = []
+    for issue in issue_lst['issues']:
+        lst.append(__from_api_issue(issue))
+    logger.debug('Issue Items: ' + str(len(lst)))
+    return lst
+
+
+def __from_api_issue(lst: dict) -> Issue:
+    """transforms your response from osmose api to Issue object"""
+
+    elems = []
+    keys = {'nodes': 'node', 'ways': 'way', 'relations': 'rel'}
+    for key in lst['osm_ids'].keys():
+        i_type = keys[key]
+        for i_id in lst['osm_ids'][key]:
+            elems.append(osm_util.Element(i_id, i_type, None))
+    issue = Issue(lst['lat'], lst['lon'], lst['id'], lst['title']['auto'], lst['subtitle'], elems)
+    return issue
+
+
+def get_issue(issue_id: str) -> Issue:
+    """
+    Gives more Information to a specific Issue.
+
+    Attributes
+    ----------
+    issue_id : str
+
+    Returns
+    -------
+    Issue
+        extended issue
+    """
+
     logger.debug('Entering: get_issue')
-    '''returns single issue with more info'''
     as_json = requests.get(URL + '/issue/{}'.format(issue_id)).json()
     logger.debug(as_json)
     bbox = itemgetter('minlon', 'minlat', 'maxlon', 'maxlat')(as_json)

@@ -22,8 +22,19 @@ class Element:
         return self.type + '_' + str(self.id)
 
 
-def create_bbox(lat, lon, rad):
-    '''rad: radius in meters'''
+def create_bbox(lat: float, lon: float, rad: int):
+    '''
+    creates a Geo Bounding box with lat, lon as center
+
+    Attributes
+    ----------
+    lat: float
+        latitude
+    lon: float
+        longitude
+    rad: int
+        radius in meters
+    '''
 
     EARTH_RAD = float(6378000)
     lat_d = (math.asin(float(rad) / (EARTH_RAD * math.cos(math.pi * lat / 180)))) * 180 / math.pi
@@ -35,7 +46,3 @@ def create_bbox(lat, lon, rad):
     min_lon = lon - lon_d
 
     return min_lon, min_lat, max_lon, max_lat
-
-
-print(repr(Element(000000, 'way', None)))
-print(create_bbox(49.16949, 9.38447, 1000))

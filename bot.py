@@ -32,7 +32,7 @@ def help(update, context):
     
 def loc_issue(update: Update, context):
     loc: Location = update.message.location
-    issues = osmose.get_issues_loc(loc.latitude, loc.longitude)
+    issues = osmose.get_issues_loc(loc.latitude, loc.longitude, 500)
     pager = osmose.Pager(issues, 10)
     context.user_data['list'] = pager
     send_issues(update.message.bot, update.effective_chat.id, pager)
@@ -50,7 +50,7 @@ def user_issue(update: Update, context: CallbackContext):
     logger.info('executed user_issue() method in bot.py')
 
 
-def send_issue(bot: Bot, chat_id, issue: osmose.Issue):
+def send_issue(bot: Bot, chat_id: str, issue: osmose.Issue):
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('Location', callback_data=issue.id),
                                       InlineKeyboardButton('Welt', callback_data=5)]])
 
