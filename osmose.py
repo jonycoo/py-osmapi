@@ -62,7 +62,7 @@ class Issue:
         return iss
 
     def __repr__(self):
-        return json.dumps(self.__dict__)
+        return json.dumps(self, default=lambda o: o.__dict__)
 
     def __str__(self):
         return '"{}" Issue at: <a href="{}">{}</a>, elems: {} '\
@@ -80,9 +80,10 @@ def get_issues_user(user):
 
 
 def get_issues_loc(lat, lon):
-    logger.debug('Entering: get_issues_loc with [lat:{}, lon:{}'.format(lat, lon))
-    path = '/issues?full=true&lat={}&lon={}&limit=50'
-    path = path.format(lat, lon)
+    logger.debug('Entering: get_issues_loc with (lat:{}, lon:{})'.format(lat, lon))
+    bbox = osm_util.create_bbox(lat, lon, 500)
+    path = '/issues?full=true&bbox={},{},{},{}&limit=50'
+    path = path.format(*bbox)
     lst = requests.get(URL + path).json()
     return Issue.to_issue_list(lst)
 

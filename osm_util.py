@@ -1,4 +1,5 @@
 import json
+import math
 
 
 class Element:
@@ -19,3 +20,22 @@ class Element:
     @property
     def elem_id(self):
         return self.type + '_' + str(self.id)
+
+
+def create_bbox(lat, lon, rad):
+    '''rad: radius in meters'''
+
+    EARTH_RAD = float(6378000)
+    lat_d = (math.asin(float(rad) / (EARTH_RAD * math.cos(math.pi * lat / 180)))) * 180 / math.pi
+    lon_d = (math.asin(float(rad) / EARTH_RAD)) * 180 / math.pi
+
+    max_lat = lat + lat_d
+    min_lat = lat - lat_d
+    max_lon = lon + lon_d
+    min_lon = lon - lon_d
+
+    return min_lon, min_lat, max_lon, max_lat
+
+
+print(repr(Element(000000, 'way', None)))
+print(create_bbox(49.16949, 9.38447, 1000))
