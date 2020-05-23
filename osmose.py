@@ -19,7 +19,7 @@ lang = 'en'
 
 class Issue:
     """
-    represents an Issue at Open Street Map
+        represents an Issue at Open Street Map
     """
 
     def __init__(self, lat: float, lon: float, e_id: str, title: str,
@@ -65,7 +65,6 @@ class Issue:
 
 
 def get_issues_user(user: str) -> list:  # future allows arbitrary arguments specifying country, etc.
-    # FIXME raise exception for empty result
     """
         searches for Issues of whom the user is the last editor
 
@@ -78,31 +77,42 @@ def get_issues_user(user: str) -> list:  # future allows arbitrary arguments spe
         -------
         list[Issue]
             up to 50 Issues found there.
+
+        Raises
+        ------
+        NoneFoundError
     """
 
     logger.debug('Entering: get_issues_user')
     lst = requests.get(URL + '/issues?full=true&username={}&limit=53'.format(user)).json()
     logger.debug(lst)
-    return __to_issue_list(lst)
+    if lst['issues']:
+        return __to_issue_list(lst)
+    else:
+        raise NoneFoundError('No issues found for user {}'.format(user))
 
 
 def get_issues_loc(lat: float, lon: float, rad: int) -> list:
     """
-    searches for Issues around a Location
+        searches for Issues around a Location
 
-    Attributes
-    ----------
-    lat : float
-        Latitude
-    lon : float
-        Longitude
-    rad : int/float
-        search Radius in meters
+        Attributes
+        ----------
+        lat : float
+            Latitude
+        lon : float
+            Longitude
+        rad : int/float
+            search Radius in meters
 
-    Returns
-    -------
-    list[Issue]
-        up to 50 Issues found there.
+        Returns
+        -------
+        list[Issue]
+            up to 50 Issues found there.
+
+        Raises
+        ------
+        NoneFoundError
     """
 
     logger.debug('Entering: get_issues_loc with (lat:{}, lon:{})'.format(lat, lon))
@@ -110,10 +120,14 @@ def get_issues_loc(lat: float, lon: float, rad: int) -> list:
     path = '/issues?full=true&bbox={},{},{},{}&limit=50'
     path = path.format(*bbox)
     lst = requests.get(URL + path).json()
-    return __to_issue_list(lst)
+    if lst['issues']:
+        return __to_issue_list(lst)
+    else:
+        raise NoneFoundError('No issues found in {}m around location: {},{}'.format(rad, lat, lon))
 
 
 def __to_issue_list(issue_lst: dict) -> list:
+    """transforms your osmose response list to a list of Issue objects"""
     logger.debug('to issue list')
     lst = []
     for issue in issue_lst['issues']:
@@ -137,16 +151,16 @@ def __from_api_issue(lst: dict) -> Issue:
 
 def get_issue(issue_id: str) -> Issue:
     """
-    Gives more Information to a specific Issue.
+        Gives more Information to a specific Issue.
 
-    Attributes
-    ----------
-    issue_id : str
+        Attributes
+        ----------
+        issue_id : str
 
-    Returns
-    -------
-    Issue
-        extended issue
+        Returns
+        -------
+        Issue
+            extended issue
     """
 
     logger.debug('Entering: get_issue')
@@ -162,32 +176,37 @@ def get_issue(issue_id: str) -> Issue:
     return issue
 
 
+class NoneFoundError(ValueError):
+    def __init__(self, message):
+        super().__init__(message)
+
+
 class Pager:
-    def __init__(self, lst, step):
+    def __init__(self, lst, step=10):
         self.lst = lst
         self.index = step * (-1)
         self.step = step
 
     def next(self):
-        ret = []
+        items = []
         if (len(self.lst) - self.index) < self.step:
-            ret = self.lst[self.index:]
+            items = self.lst[self.index:]
         else:
             self.index += self.step
-            ret = self.lst[self.index: (self.index + self.step)]
+            items = self.lst[self.index: (self.index + self.step)]
         logger.debug('pager index after next:' + str(self.index))
-        return ret
+        return items
 
     def prev(self):
-        ret = []
+        items = []
         if self.index > 0:
-            ret = self.lst[(self.index - self.step): self.index]
+            items = self.lst[(self.index - self.step): self.index]
             self.index -= self.step
         else:
-            ret = self.lst[(self.index - self.step): self.index]
+            items = self.lst[(self.index - self.step): self.index]
             self.index = 0
         logger.debug('pager index after prev:' + str(self.index))
-        return ret
+        return items
 
     @staticmethod
     def to_msg(lst):
@@ -198,5 +217,4 @@ class Pager:
         return message
 
     def curr(self):
-        ret = self.lst[self.index: (self.index + self.step)]
-        return ret
+        return self.lst[self.index: (self.index + self.step)]

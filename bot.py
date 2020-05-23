@@ -10,9 +10,9 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 try:
-    TOKEN = os.environ['TEST_BOT']
+    TOKEN = os.environ['BOT_TOKEN']
 except KeyError:
-    logger.exception('no "TEST_BOT" token in environment variables.', 'Exit program')
+    logger.exception('no "BOT_TOKEN" token in environment variables.', 'Exit program')
     exit()
 
 
@@ -32,22 +32,28 @@ def help(update, context):
     
 def loc_issue(update: Update, context):
     loc: Location = update.message.location
-    issues = osmose.get_issues_loc(loc.latitude, loc.longitude, 500)
-    pager = osmose.Pager(issues, 10)
-    context.user_data['list'] = pager
-    send_issues(update.message.bot, update.effective_chat.id, pager)
-    logger.info('executed location() method in bot.py')
+    try:
+        issues = osmose.get_issues_loc(loc.latitude, loc.longitude, 5)
+        pager = osmose.Pager(issues, 10)
+        context.user_data['list'] = pager
+        send_issues(update.message.bot, update.effective_chat.id, pager)
+        logger.info('executed loc_issue()')
+    except osmose.NoneFoundError as err:
+        error(update, context, err)
 
 
 def user_issue(update: Update, context: CallbackContext):
     logger.debug('Entering: user_issue')
     user = context.args[0]
-    issues = osmose.get_issues_user(user)
-    logger.debug(issues)
-    pager = osmose.Pager(issues, 10)
-    context.user_data['list'] = pager
-    send_issues(update.message.bot, update.effective_chat.id, pager)
-    logger.info('executed user_issue() method in bot.py')
+    try:
+        issues = osmose.get_issues_user(user)
+        logger.debug(issues)
+        pager = osmose.Pager(issues, 10)
+        context.user_data['list'] = pager
+        send_issues(update.message.bot, update.effective_chat.id, pager)
+        logger.info('executed user_issue()')
+    except osmose.NoneFoundError as err:
+        error(update, context, err)
 
 
 def send_issue(bot: Bot, chat_id: str, issue: osmose.Issue):
@@ -58,8 +64,7 @@ def send_issue(bot: Bot, chat_id: str, issue: osmose.Issue):
 
 
 def prepKeyboard(iss_lst):
-    #erstelle ein button je item in iss_lst aber max 5 je zeile
-    keyboard = ''
+    # Erstelle ein button je item in iss_lst aber max 5 je zeile
     prep_keyboard = [[InlineKeyboardButton("Prev", callback_data='prev'),
                       InlineKeyboardButton("Next", callback_data='next')]]
     buttons = []
@@ -95,7 +100,7 @@ def prev_iss(query: CallbackQuery, context: CallbackContext):
 
 
 def more_iss(query: CallbackQuery, context: CallbackContext):
-    '''reply more details of the Issue'''
+    """reply more details of the Issue"""
     logger.debug('in more_iss')
     lst = context.user_data['list'].curr()
     iss = osmose.get_issue(lst[int(query.data)].id)
@@ -129,9 +134,11 @@ def button(update: Update, context):
     print(query.data)
 
 
-def error(update, context):
+def error(update, context, err: Exception):
     """Log Errors caused by Updates."""
     logger.warning('Update "%s" caused error "%s"', update, context.error)
+    bot: Bot = update.message.bot
+    bot.send_message(update.effective_chat.id, err.args[0])
 
 
 def main():
