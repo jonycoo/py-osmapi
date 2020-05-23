@@ -33,7 +33,7 @@ def help(update, context):
 def loc_issue(update: Update, context):
     loc: Location = update.message.location
     try:
-        issues = osmose.get_issues_loc(loc.latitude, loc.longitude, 5)
+        issues = osmose.get_issues_loc(loc.latitude, loc.longitude, 500)
         pager = osmose.Pager(issues, 10)
         context.user_data['list'] = pager
         send_issues(update.message.bot, update.effective_chat.id, pager)
