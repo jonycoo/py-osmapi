@@ -57,11 +57,14 @@ class Issue:
         return json.dumps(self, default=lambda o: o.__dict__)
 
     def __str__(self):
-        return '"{}" Issue at: <a href="{}">{}</a>, elems: {} '\
-            .format(self.title, self.osm_url(), self.loc, [str(elem) for elem in self.elems])
+        return '"{}" Issue at: {} , elems: {} '\
+            .format(self.title, self.loc, [str(elem) for elem in self.elems])
 
     def osm_url(self):
         return "https://osm.org/#map=18/{}/{}&layers=ND".format(self.lat, self.lon)
+
+    def desc_url(self):
+        return "http://osmose.openstreetmap.fr/en/error/" + self.id
 
 
 def get_issues_user(user: str) -> list:  # future allows arbitrary arguments specifying country, etc.
@@ -144,7 +147,7 @@ def __from_api_issue(lst: dict) -> Issue:
     for key in lst['osm_ids'].keys():
         i_type = keys[key]
         for i_id in lst['osm_ids'][key]:
-            elems.append(osm_util.Element(i_id, i_type, None))
+            elems.append(osm_util.PropElement(i_id, i_type, None))
     issue = Issue(lst['lat'], lst['lon'], lst['id'], lst['title']['auto'], lst['subtitle'], elems)
     return issue
 
@@ -169,10 +172,10 @@ def get_issue(issue_id: str) -> Issue:
     bbox = itemgetter('minlon', 'minlat', 'maxlon', 'maxlat')(as_json)
     elems = []
     for elem in as_json['elems']:
-        elems.append(osm_util.Element(elem['id'], elem['type'], elem['tags']))
+        elems.append(osm_util.PropElement(elem['id'], elem['type'], elem['tags']))
 
-    issue = Issue.detail_issue(as_json['lat'], as_json['lon'], issue_id,
-                               as_json['title'], as_json['subtitle'], elems, bbox)
+    issue = Issue(as_json['lat'], as_json['lon'], issue_id,
+                  as_json['title'], as_json['subtitle'], elems, bbox)
     return issue
 
 

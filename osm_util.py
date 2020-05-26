@@ -1,25 +1,31 @@
 import json
 import math
+from OSMPythonTools.api import Element
 
 
-class Element:
+class PropElement(Element):
     def __init__(self, i_id, i_type, tags):
-        self.id = i_id
-        self.type = i_type
+        self._id = i_id
+        self._type = i_type
         self.tags = {}
         if tags:
             for tag in tags:
                 self.tags[tag['k']] = tag['v']
+        super().__init__()
 
     def __repr__(self):
         return json.dumps(self.__dict__)
 
     def __str__(self):
-        return self.elem_id
+        return str(self.id)
 
     @property
-    def elem_id(self):
-        return self.type + '_' + str(self.id)
+    def id(self):
+        return self._id
+
+    @property
+    def type(self):
+        return self._type
 
 
 def create_bbox(lat: float, lon: float, rad: int):

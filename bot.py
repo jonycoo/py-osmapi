@@ -32,6 +32,8 @@ def help(update, context):
     
 def loc_issue(update: Update, context):
     loc: Location = update.message.location
+    if not loc:
+        loc = Location(float(context.args[1]), float(context.args[0]))
     try:
         issues = osmose.get_issues_loc(loc.latitude, loc.longitude, 500)
         pager = osmose.Pager(issues, 10)
@@ -72,7 +74,7 @@ def prepKeyboard(iss_lst):
         buttons.append(InlineKeyboardButton(str(i), callback_data=str(i)))
     for i in range(0, len(buttons), 5):
         prep_keyboard.append(buttons[i:i + 5])
-
+    logger.debug('keyboard prepared')
     return InlineKeyboardMarkup(prep_keyboard)
 
 
@@ -106,7 +108,8 @@ def more_iss(query: CallbackQuery, context: CallbackContext):
     iss = osmose.get_issue(lst[int(query.data)].id)
     context.user_data['det_iss'] = iss
     del context.user_data['list']
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('Location', callback_data='loc' )]])
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('Location', callback_data='loc'),
+                                      InlineKeyboardButton('Description', url=iss.desc_url())]])
     query.edit_message_text(str(iss), reply_markup=keyboard, parse_mode=ParseMode.HTML)
 
 
@@ -128,6 +131,8 @@ def button(update: Update, context):
         prev_iss(query, context)
     elif query.data == 'loc':
         iss_loc(query, context)
+    elif query.data == 'desc':
+        iss_desc(query, context)
     else:
         more_iss(query, context)
     query.answer()
@@ -157,6 +162,7 @@ def main():
     dp.add_handler(CommandHandler('user', user_issue))
     dp.add_handler(CallbackQueryHandler(button))
     dp.add_handler(MessageHandler(Filters.location, loc_issue))
+    dp.add_handler(CommandHandler("loc", loc_issue))
 
     # on non-command i.e message - echo the message on Telegram
     # dp.add_handler(MessageHandler(Filters.text, echo))
