@@ -8,7 +8,8 @@ import logging
 import requests
 import json
 from operator import itemgetter
-import osm_util
+from osm import osm_util
+from ee_osmose import NoneFoundError
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(lineno)d - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -177,11 +178,6 @@ def get_issue(issue_id: str) -> Issue:
     issue = Issue(as_json['lat'], as_json['lon'], issue_id,
                   as_json['title'], as_json['subtitle'], elems, bbox)
     return issue
-
-
-class NoneFoundError(ValueError):
-    def __init__(self, message):
-        super().__init__(message)
 
 
 class Pager:

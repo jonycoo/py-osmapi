@@ -1,9 +1,11 @@
 import os
 import logging
+
+import ee_osmose
 import osmose
 from telegram import *
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
-                          ConversationHandler, CallbackQueryHandler, CallbackContext)
+                          CallbackQueryHandler, CallbackContext)
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
@@ -40,7 +42,7 @@ def loc_issue(update: Update, context):
         context.user_data['list'] = pager
         send_issues(update.message.bot, update.effective_chat.id, pager)
         logger.info('executed loc_issue()')
-    except osmose.NoneFoundError as err:
+    except ee_osmose.NoneFoundError as err:
         error(update, context, err)
 
 
@@ -54,7 +56,7 @@ def user_issue(update: Update, context: CallbackContext):
         context.user_data['list'] = pager
         send_issues(update.message.bot, update.effective_chat.id, pager)
         logger.info('executed user_issue()')
-    except osmose.NoneFoundError as err:
+    except ee_osmose.NoneFoundError as err:
         error(update, context, err)
 
 
@@ -65,23 +67,23 @@ def send_issue(bot: Bot, chat_id: str, issue: osmose.Issue):
     bot.send_message(chat_id, issue.__str__(), reply_markup=keyboard)
 
 
-def prepKeyboard(iss_lst):
-    # Erstelle ein button je item in iss_lst aber max 5 je zeile
-    prep_keyboard = [[InlineKeyboardButton("Prev", callback_data='prev'),
-                      InlineKeyboardButton("Next", callback_data='next')]]
+def prep_keyboard(num):
+    """prepares an InlineKeyboardMarkup with as much buttons as elements but max 5 each row"""
+    keyboard = [[InlineKeyboardButton("Prev", callback_data='prev'),
+                 InlineKeyboardButton("Next", callback_data='next')]]
     buttons = []
-    for i in range(len(iss_lst.curr())):
-        buttons.append(InlineKeyboardButton(str(i), callback_data=str(i)))
+    for i in range(num):
+        buttons.append(InlineKeyboardButton(str(i+1), callback_data=str(i)))
     for i in range(0, len(buttons), 5):
-        prep_keyboard.append(buttons[i:i + 5])
+        keyboard.append(buttons[i:i + 5])
     logger.debug('keyboard prepared')
-    return InlineKeyboardMarkup(prep_keyboard)
+    return InlineKeyboardMarkup(keyboard)
 
 
 def send_issues(bot: Bot, chat_id, pager):
     logger.debug('Entering: send_issues')
     pager.next()
-    keyboard = prepKeyboard(pager)
+    keyboard = prep_keyboard(len(pager.curr()))
     msg = osmose.Pager.to_msg(pager.curr())
     logger.debug('send list of issues')
     bot.send_message(chat_id, msg, reply_markup=keyboard, parse_mode=ParseMode.HTML)
@@ -91,14 +93,14 @@ def next_iss(query, context: CallbackContext):
     logger.debug('in next_iss')
     nx_pg = context.user_data['list'].next()
     iss_msg = osmose.Pager.to_msg(nx_pg)
-    query.edit_message_text(iss_msg, reply_markup=prepKeyboard(context.user_data['list']), parse_mode=ParseMode.HTML)
+    query.edit_message_text(iss_msg, reply_markup=prep_keyboard(len(nx_pg)), parse_mode=ParseMode.HTML)
 
 
 def prev_iss(query: CallbackQuery, context: CallbackContext):
     logger.debug('in prev_iss')
     pv_pg = context.user_data['list'].prev()
     iss_msg = osmose.Pager.to_msg(pv_pg)
-    query.edit_message_text(iss_msg, reply_markup=prepKeyboard(context.user_data['list']), parse_mode=ParseMode.HTML)
+    query.edit_message_text(iss_msg, reply_markup=prep_keyboard(len(pv_pg)), parse_mode=ParseMode.HTML)
 
 
 def more_iss(query: CallbackQuery, context: CallbackContext):
@@ -131,8 +133,6 @@ def button(update: Update, context):
         prev_iss(query, context)
     elif query.data == 'loc':
         iss_loc(query, context)
-    elif query.data == 'desc':
-        iss_desc(query, context)
     else:
         more_iss(query, context)
     query.answer()

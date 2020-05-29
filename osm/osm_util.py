@@ -28,6 +28,11 @@ class PropElement(Element):
         return self._type
 
 
+class Note:
+    def __init__(self):
+        pass
+
+
 def create_bbox(lat: float, lon: float, rad: int):
     '''
     creates a Geo Bounding box with lat, lon as center

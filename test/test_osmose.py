@@ -1,4 +1,6 @@
 import unittest
+
+import ee_osmose
 import osmose
 
 
@@ -10,7 +12,7 @@ class OsmoseTest(unittest.TestCase):
         print(issues)
 
     def test_iss_loc_neg(self):
-        with self.assertRaises(osmose.NoneFoundError):
+        with self.assertRaises(ee_osmose.NoneFoundError):
             osmose.get_issues_loc(0.0, 0.0, 0)
 
     def test_iss_user_pos(self):
@@ -19,7 +21,7 @@ class OsmoseTest(unittest.TestCase):
         print(issues)
 
     def test_iss_user_neg(self):
-        with self.assertRaises(osmose.NoneFoundError):
+        with self.assertRaises(ee_osmose.NoneFoundError):
             osmose.get_issues_user(None)
 
 
