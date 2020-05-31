@@ -1,5 +1,5 @@
-from osm.osm_util import PropElement, Note
-from datetime import date
+from osm.osm_util import Element, Note, ChangeSet
+from datetime import *
 
 
 class OsmApi:
@@ -20,20 +20,19 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    def get_permissions(self) -> list:
+    def get_permissions(self) -> set:
         """
         current permissions
-        GET /api/0.6/permissions
         """
         raise NotImplementedError
 
     ''' changeset '''
 
-    def create_changeset(self, dct: dict) -> int:
+    def create_changeset(self, changeset: ChangeSet) -> int:
         """
         PUT /api/0.6/changeset/create
 
-        :param dct: Dictionary containing additional tags
+        :param changeset: Dictionary containing additional tags
 
         :returns: changeset ID
 
@@ -45,28 +44,20 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    def get_changeset(self, cid: int, discussion=False) -> dict:
+    def get_changeset(self, cid: int, discussion: bool = False) -> ChangeSet:
         """
         A Call to get a changeset optionally with discussion.
         no elements included
 
-        GET /api/0.6/changeset/#id?include_discussion=
-        exclude discussion by <empty> or omitting
-
-        :param cid: int
-            changeset ID
-        :param discussion: bool
-            include changeset discussion?
-
+        :param cid: changeset ID
+        :param discussion: include changeset discussion?
         :returns: dictionary representation of the changeset
-
         :raises NoneFoundError:
-            HTTP 404 NOT FOUND
             no changeset matching this ID
         """
         raise NotImplementedError
 
-    def edit_changeset(self, cdt: dict) -> dict:
+    def edit_changeset(self, changeset: ChangeSet):
         """
         PUT /api/0.6/changeset/#id
         """
@@ -86,14 +77,14 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    def download_changeset(self, cid: int) -> dict:
+    def download_changeset(self, cid: int) -> ChangeSet:
         """
         GET /api/0.6/changeset/#id/download
         """
         raise NotImplementedError
 
-    def get_changesets(self, bbox: tuple = None, user='', time1=None, time2=None,
-                       is_open=True, is_closed=True, changesets=None) -> list:
+    def get_changesets(self, bbox: tuple = None, user: str = '', time1: datetime = None, time2: datetime = None,
+                       is_open: bool = True, is_closed: bool = True, changesets: list = None) -> list:
         """
         returns max 100 changesets matching all provided parameters
         GET /api/0.6/changesets
@@ -121,31 +112,25 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    def sub_changeset(self, cid: int) -> str:
+    def sub_changeset(self, cid: int) -> ChangeSet:
         """
         Subscribes the current authenticated user to changeset discussion
-        POST /api/0.6/changeset/#id/subscribe
 
-        :raises ConflictError:
-            HTTP 409 CONFLICT
-            already subscribed
+        :raises ConflictError: already subscribed
         """
         raise NotImplementedError
 
-    def unsub_changeset(self, cid: int) -> str:
+    def unsub_changeset(self, cid: int) -> ChangeSet:
         """
         Unsubscribes the current authenticated user from changeset discussion
-        POST /api/0.6/changeset/#id/subscribe
 
-        :raises NoneFoundError:
-            HTTP 400 NOT FOUND
-            is not subscribed
+        :raises NoneFoundError: is not subscribed
         """
         raise NotImplementedError
 
     ''' Element '''
 
-    def create_element(self, elem: PropElement, cid: int) -> int:
+    def create_element(self, elem: Element, cid: int) -> int:
         """
         creates new element of specified type
         PUT /api/0.6/[node|way|relation]/create
@@ -170,25 +155,21 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    def get_element(self, etype: str, eid: int) -> PropElement:
+    def get_element(self, etype: str, eid: int) -> Element:
         """
         GET /api/0.6/[node|way|relation]/#id
 
         :returns: Element containing all available data.
-
-        :raises NoneFoundError:
-            HTTP 404 NOT FOUND
-        :raises LockupError:
-            HTTP 410 GONE
+        :raises NoneFoundError: No Element with such id
+        :raises LockupError: Deleted Element
         """
         raise NotImplementedError
 
-    def edit_element(self, elem: PropElement, cid: int) -> int:
+    def edit_element(self, elem: Element, cid: int) -> int:
         """
         PUT /api/0.6/[node|way|relation]/#id
 
         :returns: New version Number
-
         :raises NoneFoundError:
             HTTP 400 BAD REQUEST
                 When there are errors parsing the XML -> ParseError
@@ -209,12 +190,11 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    def delete_element(self, elem: PropElement) -> int:
+    def delete_element(self, elem: Element) -> int:
         """
         DELETE /api/0.6/[node|way|relation]/#id
 
         :returns: new version number
-
         :raises NoneFoundError:
             HTTP 400 BAD REQUEST
                     When there are errors parsing the XML -> ParseError
@@ -246,7 +226,7 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    def history_version_element(self, etype: str, eid: int, version: int = None) -> PropElement:
+    def history_version_element(self, etype: str, eid: int, version: int = None) -> Element:
         """
         Return specified version of element
         GET /api/0.6/[node|way|relation]/#id/#version
@@ -257,6 +237,7 @@ class OsmApi:
         """
         multiple elements as specified in the list of eid
         GET /api/0.6/[nodes|ways|relations]?#parameters
+        todo write doku
         """
         raise NotImplementedError
 
@@ -266,16 +247,16 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    def get_ways_of_node(self, etype: str, eid: int) -> list:
+    def get_ways_of_node(self, eid: int) -> list:
         """
-        GET /api/0.6/node/#id/ways
+        use only on node elements
+        :returns: ways directly using this node
         """
         raise NotImplementedError
 
     def get_element_bbox(self, bbox: tuple) -> list:
         """
         :returns: all Elements with minimum one Node within this BoundingBox
-        GET /api/0.6/map:
 
         """
         raise NotImplementedError
@@ -506,7 +487,8 @@ class OsmApi:
         raise NotImplementedError
 
     def search_note(self, text: str, limit: int = 100, closed: int = 7, username: str = None, user: int = None,
-                    start: date = None, end: date = None, sort: str = 'updated_at', order: str = 'newest') -> list:
+                    start: datetime = None, end: datetime = None,
+                    sort: str = 'updated_at', order: str = 'newest') -> list:
         """
         GET /api/0.6/notes/search?q=<SearchTerm>&limit=&closed=&username=&user=&from=&to=&sort=&order=
 
@@ -523,6 +505,7 @@ class OsmApi:
         :raises ValueError: HTTP 400 BAD REQUEST
             When any of the limits are crossed
         """
+        raise NotImplementedError
 
     def rss_notes(self, bbox) -> str:
         """
@@ -531,3 +514,4 @@ class OsmApi:
         :param bbox: (lonmin, latmin, lonmax, latmax)
         :return:
         """
+        raise NotImplementedError

@@ -1,24 +1,55 @@
+import requests
+
 from osm import a_osm_api
-from osm.osm_util import PropElement, Note
-from datetime import date
+import logging
+import os
+from osm.osm_util import Element, Note, ChangeSet, Comment
+from datetime import *
+
+import gpxpy.gpx
+from xml.etree import ElementTree as ElemTree
+from http import HTTPStatus
+
+from ee_osmose import *
+
+
+# Enable logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(lineno)d - %(message)s', level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+try:
+    NAME = os.environ['OSM_USERNAME']
+    PASS = os.environ['OSM_PASSWORD']
+except KeyError:
+    logger.exception('no "OSM_USERNAME" or "OSM_PASSWORD" in environment variables.', 'Exit program')
+    exit()
 
 
 class OsmApi(a_osm_api.OsmApi):
+    base_url = 'https://master.apis.dev.openstreetmap.org/api/0.6'
 
-    def get_permissions(self) -> list:
+    def get_permissions(self) -> set:
         """
         current permissions
         GET /api/0.6/permissions
         """
-        raise NotImplementedError
+        data = requests.get(self.base_url + '/permissions', auth=(NAME, PASS))
+        if data.status_code == HTTPStatus.OK:
+            tree = ElemTree.fromstring(data.text)
+            permissions = set()
+            for item in tree.findall('permissions/permission'):
+                permissions.add(item.get('name'))
+            return permissions
+        else:
+            raise Exception(data.text)
 
     ''' changeset '''
 
-    def create_changeset(self, dct: dict) -> int:
+    def create_changeset(self, changeset: ChangeSet) -> int:
         """
         PUT /api/0.6/changeset/create
 
-        :param dct: Dictionary containing additional tags
+        :param changeset: Dictionary containing additional tags
 
         :returns: changeset ID
 
@@ -28,9 +59,17 @@ class OsmApi(a_osm_api.OsmApi):
             for HTTP 405 METHOD NOT ALLOWED
             only PUT allowed
         """
-        raise NotImplementedError
+        data = requests.put(self.base_url + '/changeset/create', auth=(NAME, PASS))
+        if data.status_code == HTTPStatus.OK:
+            return int(data.text)
+        elif data.status_code == HTTPStatus.BAD_REQUEST:
+            raise ParseError(data.text)
+        elif data.status_code == HTTPStatus.METHOD_NOT_ALLOWED:
+            raise MethodError(data.text)
+        else:
+            raise Exception(data.text)
 
-    def get_changeset(self, cid: int, discussion=False) -> dict:
+    def get_changeset(self, cid: int, discussion: bool = False) -> ChangeSet:
         """
         A Call to get a changeset optionally with discussion.
         no elements included
@@ -38,18 +77,23 @@ class OsmApi(a_osm_api.OsmApi):
         GET /api/0.6/changeset/#id?include_discussion=
         exclude discussion by <empty> or omitting
 
-        :param cid: int
-            changeset ID
-        :param discussion: bool
-            include changeset discussion?
-
+        :param cid: changeset ID
+        :param discussion: include changeset discussion?
         :returns: dictionary representation of the changeset
-
         :raises NoneFoundError:
             HTTP 404 NOT FOUND
             no changeset matching this ID
         """
-        raise NotImplementedError
+        url = self.base_url + '/changeset/{}'.format(cid)
+        if discussion:
+            url += '?include_discussion=True'
+        data = requests.get(url, auth=(NAME, PASS))
+        if data.status_code == HTTPStatus.OK:
+            return self.__changeset_parser(data.text)
+        elif data.status_code == HTTPStatus.NOT_FOUND:
+            raise NoneFoundError(data.text)
+        else:
+            raise Exception(data.text)
 
     def close_changeset(self, cid: int):
         """
@@ -63,13 +107,45 @@ class OsmApi(a_osm_api.OsmApi):
         :raises ConflictError:
             HTTP 409 CONFLICT
         """
-        raise NotImplementedError
+        data = requests.get(self.base_url + '/changeset/close', auth=(NAME, PASS))
+        if data.status_code == HTTPStatus.OK:
+            return int(data.text)
+        elif data.status_code == HTTPStatus.NOT_FOUND:
+            raise NoneFoundError(data.text)
+        elif data.status_code == HTTPStatus.BAD_REQUEST:
+            raise ParseError(data.text)
+        elif data.status_code == HTTPStatus.METHOD_NOT_ALLOWED:
+            raise MethodError(data.text)
+        else:
+            raise Exception(data.text)
 
-    def download_changeset(self, cid: int) -> dict:
+    def download_changeset(self, cid: int) -> ChangeSet:
         """
         GET /api/0.6/changeset/#id/download
         """
         raise NotImplementedError
+
+    def __changeset_parser(self, data: str):
+        tree = ElemTree.fromstring(data)
+        tags = self.__kv_parser(tree.findall('changeset/tag'))
+        cs_xml = tree.find('changeset')
+        cs_prop = {}
+        for key in cs_xml.keys():
+            cs_prop[key] = cs_xml.get(key)
+
+        com_xml = tree.findall('comment')
+        comments = []
+        for com in com_xml:
+            cr_date = datetime.fromisoformat(com.get('date'))
+            comments.append(Comment(com.find('text').text, com.get('uid'), com.get('user'), cr_date))
+        try:
+            bbox = cs_prop['max_lon'], cs_prop['max_lat'], cs_prop['min_lon'], cs_prop['min_lat']
+        except KeyError:
+            bbox = ()
+        ch_set = ChangeSet(cs_prop['id'], cs_prop['user'], cs_prop['uid'], cs_prop['created_at'],
+                           True, bbox, cs_prop['open'] or datetime.fromisoformat(cs_prop['closed_at']), tags)
+        ch_set.comments = comments
+        return ch_set
 
     def comm_changeset(self, cid: int, text: str) -> str:
         """
@@ -85,7 +161,7 @@ class OsmApi(a_osm_api.OsmApi):
         """
         raise NotImplementedError
 
-    def sub_changeset(self, cid: int) -> str:
+    def sub_changeset(self, cid: int) -> ChangeSet:
         """
         Subscribes the current authenticated user to changeset discussion
         POST /api/0.6/changeset/#id/subscribe
@@ -94,22 +170,34 @@ class OsmApi(a_osm_api.OsmApi):
             HTTP 409 CONFLICT
             already subscribed
         """
-        raise NotImplementedError
+        data = requests.post(self.base_url + '/changeset/{}/subscribe'.format(cid), auth=(NAME, PASS))
+        if data.status_code == HTTPStatus.OK:
+            return self.__changeset_parser(data.text)
+        elif data.status_code == HTTPStatus.CONFLICT:
+            raise ConflictError(data.text)
+        else:
+            raise Exception(data.text)
 
-    def unsub_changeset(self, cid: int) -> str:
+    def unsub_changeset(self, cid: int) -> ChangeSet:
         """
-        Unsubscribes the current authenticated user from changeset discussion
+        Unsubscribe the current authenticated user from changeset discussion
         POST /api/0.6/changeset/#id/subscribe
 
         :raises NoneFoundError:
             HTTP 400 NOT FOUND
             is not subscribed
         """
-        raise NotImplementedError
+        data = requests.post(self.base_url + '/changeset/{}/unsubscribe'.format(cid), auth=(NAME, PASS))
+        if data.status_code == HTTPStatus.OK:
+            return self.__changeset_parser(data.text)
+        elif data.status_code == HTTPStatus.NOT_FOUND:
+            raise NoneFoundError(data.text)
+        else:
+            raise Exception(data.text)
 
     ''' Element '''
 
-    def create_element(self, elem: PropElement, cid: int) -> int:
+    def create_element(self, elem: Element, cid: int) -> int:
         """
         creates new element of specified type
         PUT /api/0.6/[node|way|relation]/create
@@ -134,20 +222,52 @@ class OsmApi(a_osm_api.OsmApi):
         """
         raise NotImplementedError
 
-    def get_element(self, etype: str, eid: int) -> PropElement:
+    def get_element(self, etype: str, eid: int) -> Element:
         """
         GET /api/0.6/[node|way|relation]/#id
 
         :returns: Element containing all available data.
-
         :raises NoneFoundError:
             HTTP 404 NOT FOUND
         :raises LockupError:
             HTTP 410 GONE
         """
-        raise NotImplementedError
+        data = requests.get(self.base_url + '/{}/{}'.format(etype, eid), auth=(NAME, PASS))
+        if data.status_code == HTTPStatus.OK:
+            tree = ElemTree.fromstring(data.text)
+            logger.debug(data.text)
+            return self.__parse_elem(tree[0])
+        elif data.status_code == HTTPStatus.NOT_FOUND:
+            raise NoneFoundError(data.text)
+        elif data.status_code == HTTPStatus.GONE:
+            raise LookupError(data.text)
 
-    def edit_element(self, elem: PropElement, cid: int) -> int:
+    def __parse_elem(self, elem: ElemTree.Element):
+        eid = elem.get('id')
+        etype = elem.tag
+        version = elem.get('version')
+        changeset = elem.get('changeset')
+        cr_date = elem.get('timestamp')
+        user = elem.get('user')
+        uid = elem.get('uid')
+        lat = elem.get('lat')
+        lon = elem.get('lon')
+
+        nodes = []
+        for node in elem.findall('nd'):
+            nodes.append(node.get('ref'))
+
+        members = []
+        for member in elem.findall('member'):
+            mem = {}
+            for item in member.keys():
+                mem[item] = member.get(item)
+            members.append(mem)
+
+        elem = Element(eid, etype, self.__kv_parser(elem.findall('tag')), nodes, members)
+        return elem
+
+    def edit_element(self, elem: Element, cid: int) -> int:
         """
         PUT /api/0.6/[node|way|relation]/#id
 
@@ -173,7 +293,7 @@ class OsmApi(a_osm_api.OsmApi):
         """
         raise NotImplementedError
 
-    def delete_element(self, elem: PropElement) -> int:
+    def delete_element(self, elem: Element) -> int:
         """
         DELETE /api/0.6/[node|way|relation]/#id
 
@@ -207,32 +327,84 @@ class OsmApi(a_osm_api.OsmApi):
         """
         multiple elements as specified in the list of eid
         GET /api/0.6/[nodes|ways|relations]?#parameters
+        todo write doku
         """
-        raise NotImplementedError
+
+        data = requests.get(self.base_url + '/{}s?{}s={}'.format(etype, etype, ','.join(map(str, lst_eid))),
+                            auth=(NAME, PASS))
+        if data.status_code == HTTPStatus.OK:
+            tree = ElemTree.fromstring(data.text)
+            logger.debug(data.text)
+            elems = []
+            for sub in tree:
+                elems.append(self.__parse_elem(sub))
+            return elems
+
+        elif data.status_code == HTTPStatus.BAD_REQUEST:
+            raise ParseError(data.text)
+        elif data.status_code == HTTPStatus.NOT_FOUND:
+            raise NoneFoundError(data.text)
+        elif data.status_code == HTTPStatus.REQUEST_URI_TOO_LONG:
+            raise MethodError(data.text)
+        raise Exception(data.text)
 
     def get_relation_of_element(self, etype: str, eid: int) -> list:
         """
         GET /api/0.6/[node|way|relation]/#id/relations
         """
-        raise NotImplementedError
+        data = requests.get(self.base_url + '/{}/{}/relations'.format(etype, eid),
+                            auth=(NAME, PASS))
+        if data.status_code == HTTPStatus.OK:
+            tree = ElemTree.fromstring(data.text)
+            logger.debug(data.text)
+            elems = []
+            for sub in tree:
+                elems.append(self.__parse_elem(sub))
+            if not elems:
+                raise NoneFoundError('no such element or no relations on this element')
+            return elems
+        raise Exception(data.text)
 
-    def get_ways_of_node(self, etype: str, eid: int) -> list:
+    def get_ways_of_node(self, eid: int) -> list:
         """
         GET /api/0.6/node/#id/ways
+        :raise NoneFoundError:
         """
-        raise NotImplementedError
+        data = requests.get(self.base_url + '/node/{}/ways'.format(eid),
+                            auth=(NAME, PASS))
+        if data.status_code == HTTPStatus.OK:
+            tree = ElemTree.fromstring(data.text)
+            logger.debug(data.text)
+            elems = []
+            for sub in tree:
+                elems.append(self.__parse_elem(sub))
+            if not elems:
+                raise NoneFoundError('no such node or no ways on this element')
+            return elems
+        raise Exception(data.text)
 
     def get_element_bbox(self, bbox: tuple) -> list:
         """
-        :returns: all Elements with minimum one Node within this BoundingBox
-        GET /api/0.6/map:
+        :returns: all Elements with minimum one Node within this BoundingBox max: 50.000 Elements
+        GET /api/0.6/map?bbox=left,bottom,right,top
 
+        :raise NoneFoundError:
         """
-        raise NotImplementedError
+        data = requests.get(self.base_url + '/map?bbox={}'.format(','.join(map(str, bbox))), auth=(NAME, PASS))
+        if data.status_code == HTTPStatus.OK:
+            tree = ElemTree.fromstring(data.text)
+            logger.debug(data.text)
+            elems = []
+            for sub in tree[1:]:
+                elems.append(self.__parse_elem(sub))
+            if not len(tree) > 1:
+                raise NoneFoundError('no elements or over 50.000 elements')
+            return elems
+        raise Exception(data.text)
 
     ''' GPX '''
 
-    def get_bbox_gpx(self, bbox: tuple, page: int) -> list:
+    def get_bbox_gpx(self, bbox: tuple, page: int = 0) -> list:
         """
         returns 5000GPS trackpoints max increase page for any additional 5000
         GET /api/0.6/trackpoints?bbox=left,bottom,right,top&page=pageNumber
@@ -240,10 +412,14 @@ class OsmApi(a_osm_api.OsmApi):
         :param bbox: (minlon, minlat, maxlon, maxlat)
         :param page: 5000 trackpoints are returned each page
 
-        :returns: max 5000 tracktoints within bbox format GPX Version 1.0
-        :rtype: tupel with lat, lon, time
+        :returns: max 5000 trackpoints within bbox format GPX Version 1.0
+        :rtype: tuple with lat, lon, time todo figger out what to return
         """
-        raise NotImplementedError
+        data = requests.get(self.base_url + '/trackpoints?bbox={}'.format(','.join(map(str, bbox))), auth=(NAME, PASS))
+        if data.status_code == HTTPStatus.OK:
+            gpx = gpxpy.parse(data.text) 
+            return gpx
+        raise Exception(data.text)
 
     def upload_gpx(self, trace: str, description: str, tags: list,
                    public: bool = True, visibility: str = 'trackable') -> int:
@@ -406,7 +582,8 @@ class OsmApi(a_osm_api.OsmApi):
         raise NotImplementedError
 
     def search_note(self, text: str, limit: int = 100, closed: int = 7, username: str = None, user: int = None,
-                    start: date = None, end: date = None, sort: str = 'updated_at', order: str = 'newest') -> list:
+                    start: datetime = None, end: datetime = None,
+                    sort: str = 'updated_at', order: str = 'newest') -> list:
         """
         GET /api/0.6/notes/search?q=<SearchTerm>&limit=&closed=&username=&user=&from=&to=&sort=&order=
 
@@ -423,6 +600,7 @@ class OsmApi(a_osm_api.OsmApi):
         :raises ValueError: HTTP 400 BAD REQUEST
             When any of the limits are crossed
         """
+        raise NotImplementedError
 
     def rss_notes(self, bbox) -> str:
         """
@@ -431,3 +609,14 @@ class OsmApi(a_osm_api.OsmApi):
         :param bbox: (lonmin, latmin, lonmax, latmax)
         :return:
         """
+
+    def __kv_parser(self, lst: list) -> dict:
+        """
+
+        :param lst: list of tags form <tag k="some" v="value"/>
+        :return: dictionary of key value pairs
+        """
+        tags = {}
+        for item in lst:
+            tags[item.get('k')] = item.get('v')
+        return tags
