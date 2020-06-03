@@ -28,19 +28,11 @@ class OsmApi:
 
     ''' changeset '''
 
-    def create_changeset(self, changeset: ChangeSet) -> int:
+    def create_changeset(self, tags: dict) -> int:
         """
-        PUT /api/0.6/changeset/create
-
-        :param changeset: Dictionary containing additional tags
-
+        :param tags: Dictionary containing additional tags
         :returns: changeset ID
-
         :raises ParseError:
-            for HTTP 400 BAD REQUEST
-        :raises MethodError:
-            for HTTP 405 METHOD NOT ALLOWED
-            only PUT allowed
         """
         raise NotImplementedError
 
@@ -52,32 +44,26 @@ class OsmApi:
         :param cid: changeset ID
         :param discussion: include changeset discussion?
         :returns: dictionary representation of the changeset
-        :raises NoneFoundError:
-            no changeset matching this ID
+        :raises NoneFoundError: no changeset matching this ID
         """
         raise NotImplementedError
 
     def edit_changeset(self, changeset: ChangeSet):
         """
-        PUT /api/0.6/changeset/#id
+
         """
         raise NotImplementedError
 
     def close_changeset(self, cid: int):
         """
         closes a changeset
-        PUT /api/0.6/changeset/#id/close
 
-        :raises NoneFoundError:
-            HTTP 404 NOT FOUND
-        :raises MethodError:
-            HTTP 405 METHOD NOT ALLOWED
-        :raises ConflictError:
-            HTTP 409 CONFLICT
+        :raises NoneFoundError: does not exist
+        :raises ConflictError: deleted
         """
         raise NotImplementedError
 
-    def download_changeset(self, cid: int) -> ChangeSet:
+    def download_changeset(self, cid: int) -> str:
         """
         GET /api/0.6/changeset/#id/download
         """
@@ -101,14 +87,9 @@ class OsmApi:
     def comm_changeset(self, cid: int, text: str) -> str:
         """
         Add a comment to a changeset. The changeset must be closed.
-        POST /api/0.6/changeset/#id/comment
-        text as "application/x-www-form-urlencoded" in body
 
-        :raises NoneFoundError:
-            HTTP 400 BAD REQUEST
-            no textfield present
-        :raises ConflictError:
-            HTTP 409 CONFLICT
+        :raises ValueError: no textfield present
+        :raises ConflictError: deleted
         """
         raise NotImplementedError
 
@@ -122,7 +103,7 @@ class OsmApi:
 
     def unsub_changeset(self, cid: int) -> ChangeSet:
         """
-        Unsubscribes the current authenticated user from changeset discussion
+        Unsubscribe the current authenticated user from changeset discussion
 
         :raises NoneFoundError: is not subscribed
         """
@@ -133,32 +114,22 @@ class OsmApi:
     def create_element(self, elem: Element, cid: int) -> int:
         """
         creates new element of specified type
-        PUT /api/0.6/[node|way|relation]/create
 
         :returns: Element ID
-
         :raises NoneFoundError:
-            HTTP 400 BAD REQUEST
-                When there are errors parsing the XML -> ParseError
-                When a changeset ID is missing (unfortunately the error messages are not consistent)
-                When a node is outside the world
-                When there are too many nodes for a way
-        :raises MethodError:
-            HTTP 405 METHOD NOT ALLOWED
+            When there are errors parsing the XML -> ParseError
+            When a changeset ID is missing (unfortunately the error messages are not consistent)
+            When a node is outside the world
+            When there are too many nodes for a way
         :raises ConflictError:
-            HTTP 409 CONFLICT
-                When changeset already closed
-                When changeset creator and element creator different
-        :raises ParseError:
-            HTTP 412 PRECONDITION FAILED
-                When a way/relation has nodes that do not exist or are not visible
+            When changeset already closed
+            When changeset creator and element creator different
+        :raises ParseError: When a way/relation has nodes that do not exist or are not visible
         """
         raise NotImplementedError
 
     def get_element(self, etype: str, eid: int) -> Element:
         """
-        GET /api/0.6/[node|way|relation]/#id
-
         :returns: Element containing all available data.
         :raises NoneFoundError: No Element with such id
         :raises LockupError: Deleted Element
@@ -167,55 +138,43 @@ class OsmApi:
 
     def edit_element(self, elem: Element, cid: int) -> int:
         """
-        PUT /api/0.6/[node|way|relation]/#id
 
+        :param elem: changed element to get uploaded
+        :param cid: open changeset id
         :returns: New version Number
-        :raises NoneFoundError:
-            HTTP 400 BAD REQUEST
-                When there are errors parsing the XML -> ParseError
-                When a changeset ID is missing
-                When a node is outside the world
-                When there are too many nodes for a way
-                When the version of the provided element does not match the current database version of the element
-        :raises MethodError:
-            HTTP 404 NOT FOUND
-                Element ID not found -> NoneFoundError
+        :raises ValueError:
+            When there are errors parsing the XML
+            When a changeset ID is missing
+            When a node is outside the world
+            When there are too many nodes for a way
+            When the version of the provided element does not match the current database version of the element
+        :raises NoneFoundError: Element ID not found
         :raises ConflictError:
-            HTTP 409 CONFLICT
-                When changeset already closed
-                When changeset creator and element creator different
-        :raises ParseError:
-            HTTP 412 PRECONDITION FAILED
-                When a way/relation has nodes that do not exist or are not visible
+            When changeset already closed
+            When changeset creator and element creator different
+        :raises ParseError: When a way/relation has nodes that do not exist or are not visible
         """
         raise NotImplementedError
 
-    def delete_element(self, elem: Element) -> int:
+    def delete_element(self, elem: Element, cid: int) -> int:
         """
-        DELETE /api/0.6/[node|way|relation]/#id
-
+        :param elem: changed element to get deleted
+        :param cid: open changeset id
         :returns: new version number
-        :raises NoneFoundError:
-            HTTP 400 BAD REQUEST
-                    When there are errors parsing the XML -> ParseError
-                    When a changeset ID is missing
-                    When a node is outside the world
-                    When there are too many nodes for a way
-                    When the version of the provided element does not match the current database version of the element
-        :raises MethodError:
-            HTTP 404 NOT FOUND
-                Element ID not found -> NoneFoundError
+        :raises ValueError:
+            When there are errors parsing the XML
+            When a changeset ID is missing
+            When a node is outside the world
+            When there are too many nodes for a way
+            When the version of the provided element does not match the current database version of the element
         :raises ConflictError:
-            HTTP 409 CONFLICT
-                When changeset already closed
-                When changeset creator and element creator different
-        :raises LookupError:
-            HTTP 410 GONE
+            When changeset already closed
+            When changeset creator and element creator different
+        :raises LookupError: deleted
         :raises ParseError:
-            HTTP 412 PRECONDITION FAILED
-                When node is still part of way/relation
-                When way is still part of relation
-                When relation is still part of another relation
+            When node is still part of way/relation
+            When way is still part of relation
+            When relation is still part of another relation
         """
         raise NotImplementedError
 
@@ -233,17 +192,20 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    def get_elements(self, etype: str, lst_eid: list) -> list:
+    def get_elements(self, etype: str, eids: list) -> list:
         """
-        multiple elements as specified in the list of eid
-        GET /api/0.6/[nodes|ways|relations]?#parameters
-        todo write doku
+        :note: returns only elements of the same type
+        :returns: multiple elements as specified in the list of eid
+        :param etype: element type one of [node, way, relation]
+        :param eids: list of eid
         """
         raise NotImplementedError
 
     def get_relation_of_element(self, etype: str, eid: int) -> list:
         """
-        GET /api/0.6/[node|way|relation]/#id/relations
+        :returns: direct relations and ways connected to element
+        :param etype: element type one of [node, way, relation]
+        :param eid: element ID
         """
         raise NotImplementedError
 
@@ -251,13 +213,14 @@ class OsmApi:
         """
         use only on node elements
         :returns: ways directly using this node
+        :raises NoneFoundError: no connected ways found
         """
         raise NotImplementedError
 
     def get_element_bbox(self, bbox: tuple) -> list:
         """
         :returns: all Elements with minimum one Node within this BoundingBox
-
+        :raise NoneFoundError: either none or over 50.000 element are found
         """
         raise NotImplementedError
 
@@ -270,27 +233,24 @@ class OsmApi:
 
     ''' GPX '''
 
-    def get_bbox_gpx(self, bbox: tuple, page: int) -> list:
+    def get_bbox_gpx(self, bbox: tuple, page: int) -> str:
         """
-        returns 5000GPS trackpoints max increase page for any additional 5000
-        GET /api/0.6/trackpoints?bbox=left,bottom,right,top&page=pageNumber
+        returns 5000GPS trackpoints max, increase page for any additional 5000
 
         :param bbox: (minlon, minlat, maxlon, maxlat)
         :param page: 5000 trackpoints are returned each page
-
-        :returns: max 5000 tracktoints within bbox format GPX Version 1.0
-        :rtype: tupel with lat, lon, time
+        :returns: max 5000 trackpoints within bbox, format GPX Version 1.0
         """
         raise NotImplementedError
 
-    def upload_gpx(self, trace: str, description: str, tags: list,
+    def upload_gpx(self, trace: str, name: str, description: str, tags: set,
                    public: bool = True, visibility: str = 'trackable') -> int:
         """
         uploads gpx trace
-        POST /api/0.6/gpx/create
 
         :param trace: gpx trace file location
         :param description: gpx description
+        :param name: file name on osm
         :param tags: additional tags mappingtour, etc
         :param public: True for public tracks else False
         :param visibility: one of [private, public, trackable, identifiable]
@@ -299,24 +259,24 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    def update_gpx(self, trace: str, description: str, tags: list,
+    def update_gpx(self, tid: int, trace: str, description: str, tags: set,
                    public: bool = True, visibility: str = 'trackable'):
         """
         updates gpx trace
-        PUT /api/0.6/gpx/#id
 
+        :param tid: uploaded trace id
         :param trace: gpx trace file location
         :param description: gpx description
         :param tags: additional tags mappingtour, etc
         :param public: True for public tracks else False
         :param visibility: one of [private, public, trackable, identifiable]
             more https://wiki.openstreetmap.org/wiki/Visibility_of_GPS_traces
+        :returns: None
         """
         raise NotImplementedError
 
     def delete_gpx(self, gpx_id: int):
         """
-        DELETE /api/0.6/gpx/#id
         :param gpx_id: id identifying the gpx file on the server
         """
         raise NotImplementedError
@@ -332,7 +292,6 @@ class OsmApi:
 
     def get_gpx(self, gpx_id: int) -> str:
         """
-        GET /api/0.6/gpx/#id/data
         :param gpx_id: id identifying the gpx file on the server
         :returns: string file location
         """
@@ -340,8 +299,6 @@ class OsmApi:
 
     def get_own_gpx(self) -> list:
         """
-        GET /api/0.6/user/gpx_files
-
         :returns: list of dictionary representing the metadata
         """
         raise NotImplementedError
@@ -350,7 +307,6 @@ class OsmApi:
 
     def get_user(self, uid: int) -> dict:
         """
-        GET /api/0.6/user/#id
         :param uid: user id
         :returns: dictionary with user detail
         """
@@ -358,8 +314,6 @@ class OsmApi:
 
     def get_users(self, uids: list) -> list:
         """
-        GET /api/0.6/users?users=#id1,#id2,...,#idn
-
         :param uids: uid in a list
         :returns: list of dictionary with user detail
         """
@@ -411,8 +365,6 @@ class OsmApi:
 
     def get_notes_bbox(self, bbox: tuple, limit: int = 100, closed: int = 7) -> list:
         """
-        GET /api/0.6/notes?bbox=left,bottom,right,top
-
         :param bbox: (lonmin, latmin, lonmax, latmax)
         :param limit: 0-1000
         :param closed: max days closed -1=all, 0=only_open
@@ -424,45 +376,35 @@ class OsmApi:
 
     def get_note(self, nid: int) -> Note:
         """
-        GET /api/0.6/notes/#id
-
         :param nid: note id
         :return: the identified Note
         :raises NoneFoundError: HTTP 404 NOT FOUND no note with this id
         """
         raise NotImplementedError
 
-    def create_note(self, text: str, lat: float, lon: float) -> int:
+    def create_note(self, text: str, lat: float, lon: float) -> Note:
         """
-        POST /api/0.6/notes?lat=<lat>&lon=<lon>&text=<ANote>
-
         :param text: Note Text
         :param lat: latitude
         :param lon: longitude
         :returns: Note ID
         :raises ValueError: No text field
-        :raises MethodError: Only POST method
         """
         raise NotImplementedError
 
     def comment_note(self, nid: int, text: str) -> Note:
         """
-        POST /api/0.6/notes/#id/comment?text=<ANoteComment>
-
         :param nid: Note ID
         :param text: Text
         :returns: the Note itself
         :raises ValueError: HTTP 400 BAD REQUEST No Textfield
         :raises NoneFoundError: HTTP 404 NOT FOUND
-        :raises MethodError: HTTP 405 METHOD NOT ALLOWED
         :raises ConflictError: HTTP 409 CONFLICT closed Note
         """
         raise NotImplementedError
 
-    def close_note(self, nid: int, text: str) -> str:
+    def close_note(self, nid: int, text: str) -> Note:
         """
-        Close: POST /api/0.6/notes/#id/close?text=<Comment>
-
         :param nid: Note ID
         :param text: Closing comment
         :returns:
@@ -474,8 +416,6 @@ class OsmApi:
 
     def reopen_note(self, nid: int, text: str):
         """
-        POST /api/0.6/notes/#id/reopen?text=<ANoteComment>
-
         :param nid: Note ID
         :param text: Text
         :returns: the Note itself

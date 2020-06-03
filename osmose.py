@@ -148,7 +148,7 @@ def __from_api_issue(lst: dict) -> Issue:
     for key in lst['osm_ids'].keys():
         i_type = keys[key]
         for i_id in lst['osm_ids'][key]:
-            elems.append(osm_util.Element(i_id, i_type, None))
+            elems.append(osm_util.MicroElem(i_id, i_type))
     issue = Issue(lst['lat'], lst['lon'], lst['id'], lst['title']['auto'], lst['subtitle'], elems)
     return issue
 
@@ -173,7 +173,7 @@ def get_issue(issue_id: str) -> Issue:
     bbox = itemgetter('minlon', 'minlat', 'maxlon', 'maxlat')(as_json)
     elems = []
     for elem in as_json['elems']:
-        elems.append(osm_util.Element(elem['id'], elem['type'], elem['tags']))
+        elems.append(osm_util.MicroElem(elem['id'], elem['type'], elem['tags']))
 
     issue = Issue(as_json['lat'], as_json['lon'], issue_id,
                   as_json['title'], as_json['subtitle'], elems, bbox)

@@ -1,29 +1,29 @@
 import json
 import math
 from datetime import datetime
+import dateutil.parser
 
 
 class Element:
-    def __init__(self, i_id: int, i_type: str, tags: dict, nodes: list = None, members: list = None):
+    def __init__(self, eid: int, version: int, changeset: int,
+                 user: str, uid: int, created: str, visible: bool, tags: dict):
         """
 
-        :param i_id:
-        :param i_type:
+        :param eid:
         :param tags:
-        :param nodes: list Node ID
-        :param members: list of dictionary
         """
-        self._id = i_id
-        self._type = i_type
+        self._id = eid
         self.tags = tags
-        if nodes:
-            self.nodes = nodes
-        if members:
-            self.members = members
-        super().__init__()
+        self.version = version
+        self.changeset = changeset
+        self.user = user
+        self.uid = uid
+        self.created = created
+        self.visible = visible
+        self.e_type = 'element'
 
     def __repr__(self):
-        return json.dumps(self.__dict__)
+        return json.dumps(self.__dict__, default=lambda o: o.__dict__)
 
     def __str__(self):
         return str(self.id)
@@ -37,34 +37,112 @@ class Element:
         return self._type
 
 
+class MicroElem:
+    def __init__(self, eid, e_type, tags: dict = None):
+        self.eid = eid
+        self.e_type = e_type
+        self.tags = tags
+
+    def __str__(self):
+        return self.e_type + str(self.eid)
+
+
+class Node(Element):
+    def __init__(self, eid: int, lat: float, lon: float, version: int, changeset: int,
+                 user: str, uid: int, created: str, visible: bool, tags: dict):
+        super().__init__(eid, version, changeset, user, uid, created, visible, tags)
+        self.lat = lat
+        self.lon = lon
+        self.e_type = 'node'
+
+
+class Way(Element):
+    def __init__(self, eid: int, nodes: list, version: int, changeset: int,
+                 user: str, uid: int, created: str, visible: bool, tags: dict):
+        super().__init__(eid, version, changeset, user, uid, created, visible, tags)
+        self.nodes = nodes
+        self.e_type = 'way'
+
+
+class Relation(Element):
+    def __init__(self, eid: int, members: list, version: int, changeset: int,
+                 user: str, uid: int, created: str, visible: bool, tags: dict):
+        super().__init__(eid, version, changeset, user, uid, created, visible, tags)
+        self.members = members
+        self.e_type = 'relation'
+
+
 class Comment:
-    def __init__(self, text: str, uid: int, username: str, created: datetime):
+    def __init__(self, text: str, uid: int, username: str, created: datetime, action: str = None):
         self.text = text
-        self.uid = uid
+        self._id = uid
         self.user = username
         self.created = created
+        self.action = action
+
+    def __repr__(self):
+        return json.dumps(self.__dict__)
+
+    @property
+    def id(self):
+        return self._id
 
 
 class Note:
-    def __init__(self):
-        pass
+    def __init__(self, nid: int, lat: float, lon: float, created: str, is_open: bool, comments: list):
+        self._id = nid
+        self.lat = lat
+        self.lon = lon
+        try:
+            dateutil.parser.parse(created)
+            self._created = created
+        except ValueError:
+            self._created = None
+        # todo date_closed
+        self.open = is_open
+        self.comments = comments
+
+    def __repr__(self):
+        return json.dumps(self.__dict__, default=lambda o: o.__dict__)
+
+    @property
+    def created(self) -> datetime:
+        if self._created:
+            return dateutil.parser.parse(self._created)
+        else:
+            return None
+
+    @property
+    def id(self):
+        return self._id
+
+    @property
+    def location(self):
+        return self._lat, self._lon
 
 
 class ChangeSet:
-    def __init__(self, cid: int, username: str, uid: int, created: datetime, is_open: bool, bbox: tuple, closed: datetime = None,
-                 tags: dict = None):
-        self.id = cid
+    def __init__(self, cid: int, username: str, uid: int, created: datetime, is_open: bool, bbox: tuple,
+                 closed: datetime = None, tags: dict = None, comments: list = None):
+        self._id = cid
         self.user = username
         self.uid = uid
         self.created = created
         self.open = is_open
-        self.maxlon, self.maxlat, self.minlon, self.minlan = bbox or None, None, None, None
+        self.maxlon = bbox[0] or None
+        self.maxlat = bbox[1] or None
+        self.minlon = bbox[2] or None
+        self.minlan = bbox[3] or None
         self.closed = closed
         self.tags = tags or {}
-        self.comments = []
+        self.comments = comments or []
 
     def __repr__(self):
-        return json.dumps(self.__dict__)
+        return json.dumps(self.__dict__, default=lambda o: o.__dict__)
+
+    @property
+    def id(self):
+        return self._id
 
     @property
     def open_comment(self):
