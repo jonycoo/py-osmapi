@@ -11,6 +11,10 @@ class MyTestCase(unittest.TestCase):
         data = self.osmo.get_permissions()
         print(data)
 
+    def test_cs_cre(self):
+        data = self.osmo.create_changeset({'comment': 'test', 'created_by': 'osmate'})
+        print(data)
+
     def test_cs_sub(self):
         data = self.osmo.sub_changeset(177967)
         print(data)
@@ -92,6 +96,10 @@ class MyTestCase(unittest.TestCase):
     def test_edit_elem(self):
         node = self.osmo.get_element('node', 4314858041)
         data = self.osmo.edit_element(node, 177967)
+
+    def test_get_users(self):
+        users = self.osmo.get_users([7634, 7122])
+        print(users)
 
 
 if __name__ == '__main__':

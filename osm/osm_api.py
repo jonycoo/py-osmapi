@@ -43,9 +43,15 @@ class OsmApi(a_osm_api.OsmApi):
     def create_changeset(self, tags: dict) -> int:
         """
         PUT /api/0.6/changeset/create
-        :returns: changeset ID todo
+        :returns: changeset ID
         """
-        data = requests.put(self.base_url + '/changeset/create', auth=(NAME, PASS))
+        root = ElemTree.Element('osm')
+        cs = ElemTree.SubElement(root, 'changeset')
+        self.__kv_serial(tags, cs)
+        xml = ElemTree.tostring(root)
+
+        logger.debug(xml)
+        data = requests.put(self.base_url + '/changeset/create', data=xml, auth=(NAME, PASS))
         if data.ok:
             return int(data.text)
         elif data.status_code == HTTPStatus.BAD_REQUEST:
@@ -161,26 +167,19 @@ class OsmApi(a_osm_api.OsmApi):
         """
         creates new element of specified type
         PUT /api/0.6/[node|way|relation]/create
-        todo
         :returns: Element ID
-
-        :raises NoneFoundError:
-            HTTP 400 BAD REQUEST
-                When there are errors parsing the XML -> ParseError
-                When a changeset ID is missing (unfortunately the error messages are not consistent)
-                When a node is outside the world
-                When there are too many nodes for a way
-        :raises MethodError:
-            HTTP 405 METHOD NOT ALLOWED
-        :raises ConflictError:
-            HTTP 409 CONFLICT
-                When changeset already closed
-                When changeset creator and element creator different
-        :raises ParseError:
-            HTTP 412 PRECONDITION FAILED
-                When a way/relation has nodes that do not exist or are not visible
         """
-        raise NotImplementedError
+        elem.changeset = cid
+        xml = self.__serial_elem(elem, True)
+        data = requests.get(self.base_url + '/{}/create'.format(elem.e_type), data=xml, auth=(NAME, PASS))
+        if data.ok:
+            return int(data.text)
+        elif data.status_code == HTTPStatus.BAD_REQUEST:
+            raise NoneFoundError(data.text)
+        elif data.status_code == HTTPStatus.CONFLICT:
+            raise ConflictError(data.text)
+        elif data.status_code == HTTPStatus.PRECONDITION_FAILED:
+            raise ParseError(data.text)
 
     def get_element(self, etype: str, eid: int) -> Element:
         """
@@ -195,6 +194,7 @@ class OsmApi(a_osm_api.OsmApi):
             raise NoneFoundError(data.text)
         elif data.status_code == HTTPStatus.GONE:
             raise LookupError(data.text)
+        raise Exception(data.text)
 
     def __parse_elem(self, elem: ElemTree.Element):
         eid = elem.get('id')
@@ -229,31 +229,29 @@ class OsmApi(a_osm_api.OsmApi):
                             self.__kv_parser(elem.findall('tag')))
         return elem
 
-    def __serial_elem(self, elem: Element) -> str:
+    def __serial_elem(self, elem: Element, is_create: bool = False) -> str:
         root = ElemTree.Element("osm")
         doc = ElemTree.Element('None')
+        if not is_create:
+            params = {'id': elem.id, 'version': str(elem.version), 'changeset': str(elem.changeset),
+                      'user': elem.user, 'uid': str(elem.uid), 'visible': str(elem.visible), 'timestamp': elem.created}
+        else:
+            params = {'changeset': str(elem.changeset)}
         if isinstance(elem, Node):
-            doc = ElemTree.SubElement(root, "node", {'id': elem.id,
-                                      'lat': str(elem.lat), 'lon': str(elem.lon), 'version': str(elem.version),
-                                      'changeset': str(elem.changeset), 'user': elem.user, 'uid': str(elem.uid),
-                                      'visible': str(elem.visible), 'timestamp': elem.created})
+            params['lat'] = str(elem.lat)
+            params['lon'] = str(elem.lon)
+            doc = ElemTree.SubElement(root, "node", params)
         elif isinstance(elem, Way):
-            doc = ElemTree.SubElement(root, "way", {'id': elem.id, 'version': str(elem.version),
-                                      'changeset': str(elem.changeset), 'user': elem.user, 'uid': str(elem.uid),
-                                                    'visible': str(elem.visible), 'timestamp': elem.created})
+            doc = ElemTree.SubElement(root, "way", params)
             for ref in elem.nodes:
                 ElemTree.SubElement(doc, 'nd', {'ref': ref})
         elif isinstance(elem, Relation):
-            doc = ElemTree.SubElement(root, "relation", {'id': elem.id, 'version': str(elem.version),
-                                      'changeset': str(elem.changeset), 'user': elem.user, 'uid': str(elem.uid),
-                                                    'visible': str(elem.visible), 'timestamp': elem.created})
+            doc = ElemTree.SubElement(root, "relation", params)
             for member in elem.members:
                 ElemTree.SubElement(doc, 'member', member)
+        self.__kv_serial(elem.tags, doc)
 
-        for key, value in elem.tags.items():
-            ElemTree.SubElement(doc, 'tag', {'k': key, 'v': value})
-
-        return ElemTree.tostring(root)
+        return ElemTree.tostring(root).decode()
 
     def edit_element(self, elem: Element, cid: int) -> int:
         """
@@ -264,7 +262,7 @@ class OsmApi(a_osm_api.OsmApi):
         data = requests.put(self.base_url + '/{}/{}'.format(elem.e_type, elem.id),
                             data=self.__serial_elem(elem), auth=(NAME, PASS))
         if data.ok:
-            int(data.text)
+            return int(data.text)
         elif data.status_code == HTTPStatus.BAD_REQUEST:
             raise ValueError(data.text)
         elif data.status_code == HTTPStatus.NOT_FOUND:
@@ -285,7 +283,7 @@ class OsmApi(a_osm_api.OsmApi):
         data = requests.delete(self.base_url + '/{}/{}'.format(elem.e_type, elem.id),
                                data=self.__serial_elem(elem), auth=(NAME, PASS))
         if data.ok:
-            int(data.text)
+            return int(data.text)
         elif data.status_code == HTTPStatus.BAD_REQUEST:
             raise ValueError(data.text)
         elif data.status_code == HTTPStatus.NOT_FOUND:
@@ -324,8 +322,7 @@ class OsmApi(a_osm_api.OsmApi):
         """
         GET /api/0.6/[node|way|relation]/#id/relations
         """
-        data = requests.get(self.base_url + '/{}/{}/relations'.format(etype, eid),
-                            auth=(NAME, PASS))
+        data = requests.get(self.base_url + '/{}/{}/relations'.format(etype, eid), auth=(NAME, PASS))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -341,8 +338,7 @@ class OsmApi(a_osm_api.OsmApi):
         """
         GET /api/0.6/node/#id/ways
         """
-        data = requests.get(self.base_url + '/node/{}/ways'.format(eid),
-                            auth=(NAME, PASS))
+        data = requests.get(self.base_url + '/node/{}/ways'.format(eid), auth=(NAME, PASS))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -379,7 +375,7 @@ class OsmApi(a_osm_api.OsmApi):
         returns 5000GPS trackpoints max, increase page for any additional 5000
         GET /api/0.6/trackpoints?bbox=left,bottom,right,top&page=pageNumber
         """
-        data = requests.get(self.base_url + '/trackpoints?bbox={}'.format(','.join(map(str, bbox))), auth=(NAME, PASS))
+        data = requests.get(self.base_url + '/trackpoints?bbox={}' + ','.join(map(str, bbox)), auth=(NAME, PASS))
         if data.ok:
             return data.text
         raise Exception(data.text)
@@ -457,7 +453,10 @@ class OsmApi(a_osm_api.OsmApi):
         :param uid: user id
         :returns: dictionary with user detail
         """
-        raise NotImplementedError
+        data = requests.get(self.base_url + '/user/' + str(uid), auth=(NAME, PASS))
+        if data.ok:
+            return self.__parse_user(data.text)[0]
+        raise Exception(data.text)
 
     def get_users(self, uids: list) -> list:
         """
@@ -466,7 +465,24 @@ class OsmApi(a_osm_api.OsmApi):
         :param uids: uid in a list
         :returns: list of dictionary with user detail
         """
-        raise NotImplementedError
+        data = requests.get(self.base_url + '/users?users=' + ','.join(map(str, uids)), auth=(NAME, PASS))
+        if data.ok:
+            logger.debug(data.text)
+            return self.__parse_user(data.text)
+        raise Exception(data.text)
+
+    def __parse_user(self, xml: str) -> list:
+        tree = ElemTree.fromstring(xml)
+        users = []
+        for user in tree.findall('user'):
+            users.append({'uid': user.get('id'),
+                          'name': user.get('display_name'),
+                          'cr_date': user.get('account_created'),
+                          'description': user.find('description').text,
+                          'terms': bool(user.find('contributor-terms').get('agreed')),
+                          'changeset_count': int(user.find('changesets').get('count')),
+                          'traces_count': int(user.find('traces').get('count'))})
+        return users
 
     def get_own_preferences(self) -> dict:
         """
@@ -636,6 +652,5 @@ class OsmApi(a_osm_api.OsmApi):
 
     def __kv_serial(self, tags: dict, parent: ElemTree.Element) -> list:
         lst = []
-        for key, value in enumerate(tags):
-            lst.append(ElemTree.SubElement(parent, 'tag', {'k': key, 'v': value}))
-        return lst
+        for key, value in tags.items():
+            ElemTree.SubElement(parent, 'tag', {'k': key, 'v': value})

@@ -88,6 +88,8 @@ class OsmApi:
         """
         Add a comment to a changeset. The changeset must be closed.
 
+        :param cid: changeset ID
+        :param text: text in new comment
         :raises ValueError: no textfield present
         :raises ConflictError: deleted
         """
@@ -97,6 +99,7 @@ class OsmApi:
         """
         Subscribes the current authenticated user to changeset discussion
 
+        :param cid: changeset ID
         :raises ConflictError: already subscribed
         """
         raise NotImplementedError
@@ -105,6 +108,7 @@ class OsmApi:
         """
         Unsubscribe the current authenticated user from changeset discussion
 
+        :param cid: changeset ID
         :raises NoneFoundError: is not subscribed
         """
         raise NotImplementedError
@@ -115,6 +119,8 @@ class OsmApi:
         """
         creates new element of specified type
 
+        :param elem: element to get created
+        :param cid: open changeset ID
         :returns: Element ID
         :raises NoneFoundError:
             When there are errors parsing the XML -> ParseError
