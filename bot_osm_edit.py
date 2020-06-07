@@ -13,15 +13,14 @@ CHOOSING, TYPING_CHOICE, TYPING_REPLY = range(3)
 
 class ElemEditor:
     def __init__(self):
-
-        return self.get_conversation()
+        pass
 
     def get_conversation(self):
         return ConversationHandler(
             entry_points=[CommandHandler('_edit', self.start)],
 
             states={
-                 CHOOSING: [MessageHandler(Filters.regex('Tag'), self.tag),
+                 CHOOSING: [MessageHandler(Filters.regex('tag'), self.tag),
                             MessageHandler(Filters.regex('cancel'), self.cancel)
                             ],
 
@@ -35,11 +34,13 @@ class ElemEditor:
             fallbacks=[MessageHandler(Filters.regex('^Done$'), self.cancel)]
                                    )
 
-    def start(self):
-        pass
+    def start(self, update, context):
+        print('hello here conversation start')
+        return CHOOSING
 
-    def tag(self):
-        pass
+    def tag(self, update, context):
+        print('hay here is converseation Tag')
+        return CHOOSING
 
     def value(self):
         pass

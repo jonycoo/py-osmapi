@@ -37,12 +37,13 @@ class Authorisation:
         self.owner_secret = fetch_response.get('oauth_token_secret')
         return self.owner_key, self.owner_secret
 
-    # Using OAuth1Session
-    def authorize(self):
+    def prepare_auth_url(self):
         authorization_url = self.oauth.authorization_url(self.base_authorization_url)
         print('Please go here and authorize,', authorization_url)  # TODO send this message to user
-        redirect_response = 'raw_input("Paste the full redirect URL here: ")'  # TODO create socket for redirect
-        oauth_response = self.oauth.parse_authorization_response(redirect_response)
+
+    # Using OAuth1Session
+    def authorize(self, response):
+        oauth_response = self.oauth.parse_authorization_response(response)
         logger.debug(oauth_response)
         self.verifier = oauth_response.get('oauth_verifier')
         return self.verifier
@@ -54,5 +55,5 @@ class Authorisation:
                                    resource_owner_key=self.owner_key,
                                    resource_owner_secret=self.owner_secret,
                                    verifier=self.verifier)
-        oauth_tokens = self.oauth.fetch_access_token(self.acc_token_url)
+        oauth_tokens = self.oauth.fetch_access_token(self.access_token_url)
 

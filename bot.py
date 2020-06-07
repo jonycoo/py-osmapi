@@ -1,6 +1,6 @@
 import os
 import logging
-
+import bot_osm_edit
 import ee_osmose
 import osmose
 from telegram import *
@@ -156,6 +156,7 @@ def main():
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
 
+    editor = bot_osm_edit.ElemEditor()
     # on different commands - answer in Telegram
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("help", help))
@@ -163,6 +164,7 @@ def main():
     dp.add_handler(CallbackQueryHandler(button))
     dp.add_handler(MessageHandler(Filters.location, loc_issue))
     dp.add_handler(CommandHandler("loc", loc_issue))
+    dp.add_handler(editor.get_conversation())
 
     # on non-command i.e message - echo the message on Telegram
     # dp.add_handler(MessageHandler(Filters.text, echo))

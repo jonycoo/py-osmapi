@@ -95,7 +95,8 @@ class MyTestCase(unittest.TestCase):
 
     def test_edit_elem(self):
         node = self.osmo.get_element('node', 4314858041)
-        data = self.osmo.edit_element(node, 177967)
+        data = self.osmo.edit_element(node, 178488)
+        print(data)
 
     def test_get_users(self):
         users = self.osmo.get_users([7634, 7122])
