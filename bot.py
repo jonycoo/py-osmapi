@@ -4,6 +4,7 @@ import bot_osm_edit
 import ee_osmose
 import osmose
 from telegram import *
+import telegram.error
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
                           CallbackQueryHandler, CallbackContext)
 
@@ -62,7 +63,7 @@ def user_issue(update: Update, context: CallbackContext):
 
 def send_issue(bot: Bot, chat_id: str, issue: osmose.Issue):
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('Location', callback_data=issue.id),
-                                      InlineKeyboardButton('Welt', callback_data=5)]])
+                                      InlineKeyboardButton('Welt', callback_data='edit')]])
 
     bot.send_message(chat_id, issue.__str__(), reply_markup=keyboard)
 
@@ -111,7 +112,7 @@ def more_iss(query: CallbackQuery, context: CallbackContext):
     context.user_data['det_iss'] = iss
     del context.user_data['list']
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton('Location', callback_data='loc'),
-                                      InlineKeyboardButton('Description', url=iss.desc_url())]])
+                                      InlineKeyboardButton('Description', url=iss.desc_url())], [InlineKeyboardButton('Edit', callback_data='edit')]])
     query.edit_message_text(str(iss), reply_markup=keyboard, parse_mode=ParseMode.HTML)
 
 
@@ -129,13 +130,19 @@ def button(update: Update, context):
 
     if query.data == 'next':
         next_iss(query, context)
+        query.answer()
     elif query.data == 'prev':
         prev_iss(query, context)
+        query.answer()
     elif query.data == 'loc':
         iss_loc(query, context)
+        query.answer()
+    elif query.data.startswith('edit'):
+        return
     else:
         more_iss(query, context)
-    query.answer()
+        query.answer()
+
     print(query.data)
 
 
@@ -159,12 +166,12 @@ def main():
     editor = bot_osm_edit.ElemEditor()
     # on different commands - answer in Telegram
     dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("help", help))
-    dp.add_handler(CommandHandler('user', user_issue))
-    dp.add_handler(CallbackQueryHandler(button))
-    dp.add_handler(MessageHandler(Filters.location, loc_issue))
-    dp.add_handler(CommandHandler("loc", loc_issue))
-    dp.add_handler(editor.get_conversation())
+    dp.add_handler(CommandHandler("help", help), 1)
+    dp.add_handler(CommandHandler('user', user_issue), 1)
+    dp.add_handler(CallbackQueryHandler(button), 1)
+    dp.add_handler(MessageHandler(Filters.location, loc_issue), 1)
+    dp.add_handler(CommandHandler("loc", loc_issue), 1)
+    dp.add_handler(editor.get_conversation(), 0)
 
     # on non-command i.e message - echo the message on Telegram
     # dp.add_handler(MessageHandler(Filters.text, echo))
@@ -172,8 +179,12 @@ def main():
     # log all errors
     dp.add_error_handler(error)
 
-    # Start the Bot
-    updater.start_polling()
+    try:
+        # Start the Bot
+        updater.start_polling()
+    except telegram.error.NetworkError:
+        logger.error('could not connect to Telegram Server')
+
 
     # Run the bot until you press Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT. This should be used most of the time, since

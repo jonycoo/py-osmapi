@@ -3,6 +3,7 @@ import math
 from datetime import datetime
 import dateutil.parser
 
+OSM_URL = 'https://master.apis.dev.openstreetmap.org'
 
 class Element:
     def __init__(self, eid: int, version: int, changeset: int,
@@ -13,7 +14,7 @@ class Element:
         :param tags:
         """
         self._id = eid
-        self.tags = tags
+        self.tags = tags or {}
         self.version = version
         self.changeset = changeset
         self.user = user
@@ -34,14 +35,14 @@ class Element:
 
     @property
     def type(self):
-        return self._type
+        return self.e_type
 
 
 class MicroElem:
     def __init__(self, eid, e_type, tags: dict = None):
         self.eid = eid
         self.e_type = e_type
-        self.tags = tags
+        self.tags = tags or {}
 
     def __str__(self):
         return self.e_type + str(self.eid)
@@ -99,8 +100,8 @@ class Note:
         except ValueError:
             self._created = None
         # todo date_closed
-        self.open = is_open
-        self.comments = comments
+        self._open = is_open
+        self._comments = comments
 
     def __repr__(self):
         return json.dumps(self.__dict__, default=lambda o: o.__dict__)
@@ -118,16 +119,40 @@ class Note:
 
     @property
     def location(self):
-        return self._lat, self._lon
+        return self.lat, self.lon
+
+
+class Trace:
+    def __init__(self, tid: int, gpx: str, filename: str, username: str, time: str,
+                 desc: str = None, tags: set = None, public: bool = True, visibility: str = 'trackable'):
+        self._tid = tid
+        self.gpx = gpx
+        self.name = filename
+        self._username = username
+        self._timestamp = time
+        self.desc = desc or ''
+        self.tags = tags or []
+        self.public = public
+        self.visibility = visibility
+
+    def __repr__(self):
+        return json.dumps(self.__dict__)
+
+    def __str__(self):
+        return self.name
+
+    @staticmethod
+    def url(osm_user, tid):
+        return OSM_URL + '/user/' + osm_user + '/traces/' + tid
 
 
 class ChangeSet:
     def __init__(self, cid: int, username: str, uid: int, created: datetime, is_open: bool, bbox: tuple,
                  closed: datetime = None, tags: dict = None, comments: list = None):
         self._id = cid
-        self.user = username
-        self.uid = uid
-        self.created = created
+        self._user = username
+        self._uid = uid
+        self._created = created
         self.open = is_open
         self.maxlon = bbox[0] or None
         self.maxlat = bbox[1] or None
@@ -169,9 +194,11 @@ def create_bbox(lat: float, lon: float, rad: int):
     lat_d = (math.asin(float(rad) / (EARTH_RAD * math.cos(math.pi * lat / 180)))) * 180 / math.pi
     lon_d = (math.asin(float(rad) / EARTH_RAD)) * 180 / math.pi
 
-    max_lat = lat + lat_d
-    min_lat = lat - lat_d
-    max_lon = lon + lon_d
-    min_lon = lon - lon_d
+    dec = 8
+
+    max_lat = round(lat + lat_d, dec)
+    min_lat = round(lat - lat_d, dec)
+    max_lon = round(lon + lon_d, dec)
+    min_lon = round(lon - lon_d, dec)
 
     return min_lon, min_lat, max_lon, max_lat

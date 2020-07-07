@@ -235,11 +235,11 @@ class OsmApi:
         GET /api/0.6/[way|relation]/#id/full
         """
 
-    # reduction purposefully left out
+    # reduction purposefully left out (only for moderators)
 
     ''' GPX '''
 
-    def get_bbox_gpx(self, bbox: tuple, page: int) -> str:
+    def get_bbox_gpx(self, bbox: tuple, page: int) -> dict:
         """
         returns 5000GPS trackpoints max, increase page for any additional 5000
 
@@ -254,7 +254,7 @@ class OsmApi:
         """
         uploads gpx trace
 
-        :param trace: gpx trace file location
+        :param trace: gpx trace file string
         :param description: gpx description
         :param name: file name on osm
         :param tags: additional tags mappingtour, etc
@@ -271,7 +271,7 @@ class OsmApi:
         updates gpx trace
 
         :param tid: uploaded trace id
-        :param trace: gpx trace file location
+        :param trace: gpx trace as string
         :param description: gpx description
         :param tags: additional tags mappingtour, etc
         :param public: True for public tracks else False
@@ -291,15 +291,16 @@ class OsmApi:
         """
         GET /api/0.6/gpx/#id/details
 
-        :param gpx_id: id identifying the gpx file on the server
+        :param gpx_id: id identifying the gpx file as string
         :returns: dictionary representing the metadata
         """
         raise NotImplementedError
 
     def get_gpx(self, gpx_id: int) -> str:
         """
+
         :param gpx_id: id identifying the gpx file on the server
-        :returns: string file location
+        :returns: gpx file as string
         """
         raise NotImplementedError
 

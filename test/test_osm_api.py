@@ -65,12 +65,12 @@ class MyTestCase(unittest.TestCase):
 
     def test_get_gpx_bbox(self):
         # 46.7723/12.1855
-        print(osm.osm_util.create_bbox(46.7723, 12.1855, 1000))
-        gpx = self.osmo.get_bbox_gpx((12.176516654163086, 46.75918370114128, 12.194483345836913, 46.78541629885872), 0)
+        print(osm.osm_util.create_bbox(46.7723, 12.1855, 500))
+        gpx = self.osmo.get_bbox_gpx(osm.osm_util.create_bbox(46.7723, 12.1855, 750), 0)
 
     def test_send_gpx(self):
         gpx = open('/home/marvin/Downloads/2020-05-31_15-23_Sun.gpx').read()
-        tid = self.osmo.upload_gpx(gpx, 'test_trace.xml', 'test', {'test'})
+        tid = self.osmo.upload_gpx(gpx, 'test_trace.xml', 'test', {'test', 'osmate'})
         print(tid)
 
 #   only works with defined value

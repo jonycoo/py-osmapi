@@ -370,14 +370,14 @@ class OsmApi(a_osm_api.OsmApi):
 
     ''' GPX '''
 
-    def get_bbox_gpx(self, bbox: tuple, page: int = 0) -> str:
+    def get_bbox_gpx(self, bbox: tuple, page: int = 0) -> list:
         """
         returns 5000GPS trackpoints max, increase page for any additional 5000
         GET /api/0.6/trackpoints?bbox=left,bottom,right,top&page=pageNumber
         """
         data = requests.get(self.base_url + '/trackpoints?bbox={}' + ','.join(map(str, bbox)), auth=(NAME, PASS))
         if data.ok:
-            return data.text
+            return self.__parse_gpx_info(data.text)
         raise Exception(data.text)
 
     def upload_gpx(self, trace: str, name: str, description: str, tags: set,
@@ -386,7 +386,7 @@ class OsmApi(a_osm_api.OsmApi):
         uploads gpx trace
         POST /api/0.6/gpx/create
         """
-        content = {'description': description, 'tags': ','.join(tags), 'public': public, 'visibility': visibility}
+        content = {'description': description, 'tags': ','.join(tags), 'visibility': visibility}
         req_file = {'file': (name, trace)}
         data = requests.post(self.base_url + '/gpx/create', auth=(NAME, PASS), files=req_file, data=content)
         if data.ok:
@@ -434,16 +434,19 @@ class OsmApi(a_osm_api.OsmApi):
         """
         data = requests.get(self.base_url + '/user/gpx_files', auth=(NAME, PASS))
         if data.ok:
-            tree = ElemTree.fromstring(data.text)
-            lst = []
-            for item in tree.findall('gpx_file'):
-                attrib = item.attrib
-                attrib['timestamp'] = dateutil.parser.isoparse(attrib['timestamp'])
-                for info in item:
-                    attrib[info.tag] = info.text
-                lst.append(attrib)
-            return lst
+            return self.__parse_gpx_info(data.text)
         raise Exception(data.text)
+
+    def __parse_gpx_info(self, xml):
+        tree = ElemTree.fromstring(xml)
+        lst = []
+        for item in tree.findall('gpx_file'):
+            attrib = item.attrib
+            attrib['timestamp'] = str(dateutil.parser.isoparse(attrib['timestamp']))
+            for info in item:
+                attrib[info.tag] = info.text
+            lst.append(attrib)
+        return lst
 
     ''' user '''
 
