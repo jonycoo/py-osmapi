@@ -11,7 +11,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 logger = logging.getLogger(__name__)
 
-CHOOSING, TAG_CHOICE, VALUE_REPLY, TYPING_REPLY, LOCATION, TEXT, DESCRIPTION, NAME, GPX_SAVE, SAVE = range(10)
+CHOOSING, TAG_CHOICE, VALUE_REPLY, TYPING_REPLY, LOCATION, TEXT, GPX_DESCRIPTION, GPX_NAME, GPX_TAG, GPX_SAVE, SAVE = range(11)
 
 
 class ElemEditor:
@@ -34,10 +34,12 @@ class ElemEditor:
                  TYPING_REPLY: [MessageHandler(Filters.text, self.value),
                                 MessageHandler(Filters.location, self.location)
                                 ],
-                NAME: [MessageHandler(Filters.text, self.gpx_name)],
+                GPX_NAME: [MessageHandler(Filters.text, self.gpx_name)],
 
-                DESCRIPTION: [CommandHandler('skip', self.gpx_up_content),
-                              MessageHandler(Filters.text, self.gpx_desc)],
+                GPX_DESCRIPTION: [CommandHandler('skip', self.gpx_desc),
+                                  MessageHandler(Filters.text, self.gpx_desc)],
+                GPX_TAG: [CommandHandler('skip', self.gpx_up_content),
+                          MessageHandler(Filters.text, self.gpx_desc)],
 
                 GPX_SAVE:[CommandHandler('save', self.gpx_up_content),
                           CallbackQueryHandler(self.gpx_toggles, 0)
@@ -66,16 +68,23 @@ class ElemEditor:
         data = open(update.effective_message.document.get_file().download()).read()
         context.user_data['gpx'] = osm.osm_util.Trace(None, data, None, None, None)
         update.message.reply_text('please send trace-name.')
-        return NAME
+        return GPX_NAME
 
     def gpx_name(self, update, context):
         name = update.message.text
         context.user_data['gpx'].name = name
         update.message.reply_text('please write a Description, or use /skip .')
-        return DESCRIPTION
+        return GPX_DESCRIPTION
 
     def gpx_desc(self, update, context):
-        context.user_data['gpx'].desc = update.message.text
+        if not update.message.text == '/skip':
+            context.user_data['gpx'].desc = update.message.text
+        update.message.reply_text('please send tags separated by \',\' or use /skip .')
+        return GPX_TAG
+
+    def gpx_tag(self, update, context):
+        tags = update.message.text.split(',')
+        context.user_data['gpx'].tags = tags
         self.gpx_up_content(update, context)
         return GPX_SAVE
 
