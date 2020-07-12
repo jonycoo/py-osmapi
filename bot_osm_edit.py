@@ -91,12 +91,12 @@ class ElemEditor:
         return GPX_SAVE
 
     def gpx_toggles(self, update, context):
-        gpx = context.user_data['gpx']
         if update.callback_query.data == 'save':
             self.gpx_save(update, context)
             del context.user_data['gpx']
             self.cancel(update, context)
         elif update.callback_query.data == 'vis':
+            gpx = context.user_data['gpx']
             vis = ['identifiable', 'trackable', 'public', 'private']
             gpx.visibility = vis[vis.index(gpx.visibility) - 1]
             context.user_data['gpx'] = gpx
@@ -106,8 +106,8 @@ class ElemEditor:
 
     def gpx_save(self, update, context):
         gpx = context.user_data['gpx']
-        tid = self.osmapi.upload_gpx(gpx.gpx, gpx.name, gpx.desc, gpx.tags, gpx.public, gpx.visibility)
-        context.bot.send_message(update.effective_chat.id, str(tid))
+        tid = self.osmapi.upload_gpx(gpx.gpx, gpx.name, gpx.desc, gpx.tags, gpx.visibility)
+        update.callback_query.edit_message_text('uploaded track: ' + str(tid))
 
     def invalid(self, update, context):
         logger.error('invalid command')

@@ -124,7 +124,7 @@ class Note:
 
 class Trace:
     def __init__(self, tid: int, gpx: str, filename: str, username: str, time: str,
-                 desc: str = None, tags: set = None, public: bool = True, visibility: str = 'trackable'):
+                 desc: str = None, tags: set = None, visibility: str = 'trackable'):
         self._tid = tid
         self.gpx = gpx
         self.name = filename
@@ -132,7 +132,6 @@ class Trace:
         self._timestamp = time
         self.desc = desc or 'no Description'
         self.tags = tags or []
-        self.public = public
         self.visibility = visibility
 
     def __repr__(self):
