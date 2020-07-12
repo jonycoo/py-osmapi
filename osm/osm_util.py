@@ -130,7 +130,7 @@ class Trace:
         self.name = filename
         self._username = username
         self._timestamp = time
-        self.desc = desc or ''
+        self.desc = desc or 'no Description'
         self.tags = tags or []
         self.public = public
         self.visibility = visibility

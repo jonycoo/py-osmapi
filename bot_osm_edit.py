@@ -26,7 +26,6 @@ class ElemEditor:
 
             states={
                  CHOOSING: [MessageHandler(Filters.regex('tag'), self.tag),
-                            MessageHandler(Filters.regex('cancel'), self.cancel)
                             ],
 
 
@@ -45,9 +44,8 @@ class ElemEditor:
                           ]
              },
 
-            fallbacks=[MessageHandler(Filters.regex('^Done$'), self.cancel),
-                       MessageHandler(Filters.command, self.invalid, 0),
-                       CallbackQueryHandler(self.invalid)]
+            fallbacks=[MessageHandler(Filters.regex('cancel'), self.cancel),
+                       MessageHandler(Filters.command, self.invalid, 0)]
                                    )
 
     def start(self, update: Update, context: CallbackContext):
@@ -78,13 +76,18 @@ class ElemEditor:
 
     def gpx_desc(self, update, context):
         context.user_data['gpx'].desc = update.message.text
+        self.gpx_up_content(update, context)
         return GPX_SAVE
 
     def gpx_up_content(self, update, context):
         gpx: osm.osm_util.Trace = context.user_data['gpx']
-        markup = InlineKeyboardMarkup([[InlineKeyboardButton(gpx.visibility, callback_data='vis')],
-                                       [InlineKeyboardButton('Upload', callback_data='save')]])
-        context.bot.send_message(update.effective_chat.id, str(gpx), reply_markup=markup)
+        markup = InlineKeyboardMarkup([[InlineKeyboardButton(gpx.visibility, callback_data='vis'),
+                                       InlineKeyboardButton('Upload', callback_data='save')]])
+        try:
+            update.callback_query.edit_message_text(str(gpx), reply_markup=markup)
+        except AttributeError:
+            update.message.reply_text(str(gpx), reply_markup=markup)
+
         return GPX_SAVE
 
     def gpx_toggles(self, update, context):
@@ -93,14 +96,13 @@ class ElemEditor:
             self.gpx_save(update, context)
             del context.user_data['gpx']
             self.cancel(update, context)
-        elif update.callback_query.data == 'public':
-            gpx.public = not gpx.public
-            context.user_data['gpx'] = gpx
         elif update.callback_query.data == 'vis':
             vis = ['identifiable', 'trackable', 'public', 'private']
             gpx.visibility = vis[vis.index(gpx.visibility) - 1]
             context.user_data['gpx'] = gpx
+        update.callback_query.answer()
         self.gpx_up_content(update, context)
+        return GPX_SAVE
 
     def gpx_save(self, update, context):
         gpx = context.user_data['gpx']
