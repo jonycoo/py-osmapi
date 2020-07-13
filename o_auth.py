@@ -1,8 +1,7 @@
 import os
 import logging
 
-# Using OAuth1Session
-from requests_oauthlib import OAuth1Session
+from rauth import OAuth1Service
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(lineno)d - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -18,42 +17,30 @@ except KeyError:
 class Authorisation:
 
     def __init__(self, req_token_url=None, base_auth_url=None, acc_token_url=None):
-        self.oauth = OAuth1Session(CLIENT_KEY, client_secret=CLIENT_SECRET)
-        self.owner_key = ''
-        self.owner_secret = ''
         self.verifier = ''
         self.request_token_url = req_token_url or 'https://master.apis.dev.openstreetmap.org/oauth/request_token'
         self.base_authorization_url = base_auth_url or 'https://master.apis.dev.openstreetmap.org/oauth/authorize'
         self.access_token_url = acc_token_url or 'https://master.apis.dev.openstreetmap.org/oauth/access_token'
+        self.osm = OAuth1Service(
+            name='osmate',
+            consumer_key=CLIENT_KEY,
+            consumer_secret=CLIENT_SECRET,
+            request_token_url=self.request_token_url,
+            access_token_url=self.access_token_url,
+            authorize_url=self.base_authorization_url,
+            base_url='https://master.apis.dev.openstreetmap.org/api/0.6')
 
-
-    # Using OAuth1Session
     def request_token(self):
+        return self.osm.get_request_token()
 
-        fetch_response = self.oauth.fetch_request_token(self.request_token_url)
-        logger.debug(fetch_response)
+    def authorize(self):
+        authorize_url = self.osm.get_authorize_url(self.osm.get_request_token()[0])
 
-        self.owner_key = fetch_response.get('oauth_token')
-        self.owner_secret = fetch_response.get('oauth_token_secret')
-        return self.owner_key, self.owner_secret
+        print('Visit this URL in your browser: ' + authorize_url)
+        self.verifier = input('Enter PIN from browser: ')  # `input` if using Python 3!
 
-    def prepare_auth_url(self):
-        authorization_url = self.oauth.authorization_url(self.base_authorization_url)
-        print('Please go here and authorize,', authorization_url)  # TODO send this message to user
-
-    # Using OAuth1Session
-    def authorize(self, response):
-        oauth_response = self.oauth.parse_authorization_response(response)
-        logger.debug(oauth_response)
-        self.verifier = oauth_response.get('oauth_verifier')
+        self.osm.get_access_token(*self.osm.get_request_token())
+        self.osm.get_access_token()
         return self.verifier
 
-    # Using OAuth1Session
-    def access_token(self):
-        self.oauth = OAuth1Session(CLIENT_KEY,
-                                   client_secret=CLIENT_SECRET,
-                                   resource_owner_key=self.owner_key,
-                                   resource_owner_secret=self.owner_secret,
-                                   verifier=self.verifier)
-        oauth_tokens = self.oauth.fetch_access_token(self.access_token_url)
 

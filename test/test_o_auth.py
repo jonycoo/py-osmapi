@@ -3,17 +3,21 @@ import o_auth
 import requests
 
 class MyTestCase(unittest.TestCase):
-    auth = o_auth.Authorisation()
 
     def test_something(self):
-        owner_cr = self.auth.request_token()
-        self.auth.prepare_auth_url()
+        auth = o_auth.Authorisation()
+        auth.request_token()
+        code = auth.authorize()
+        print(code)
+        resp = requests.post('https://master.apis.dev.openstreetmap.org/api/0.6/permissions', headers={"Authorization": code})
+        print(resp.text)
+        print(resp)
 
-    def test_something(self):
-        self.auth.authorize()
-
-
-
+    def test_token(self):
+        resp = requests.post('https://master.apis.dev.openstreetmap.org/api/0.6/permissions',
+                             headers={"Authorization": 'uqYNXxiXtuNVIZhUsAh7GsG0jdWR9bYU6j0ruQxZ'})
+        print(resp.text)
+        print(resp)
 
 
 if __name__ == '__main__':
