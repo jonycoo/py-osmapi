@@ -1,5 +1,6 @@
 import unittest
 import os
+import osm.osm_api
 from rauth import OAuth1Service
 from requests_oauthlib import OAuth1
 
@@ -26,7 +27,7 @@ class MyTestCase(unittest.TestCase):
         request_token, request_token_secret = osm_auth.get_request_token()
         authorize_url = osm_auth.get_authorize_url(request_token)
         print('Visit this URL in your browser: ' + authorize_url)
-        pin = input('Enter PIN from browser: ')  # `does not need
+        input('press any key to continue...')  # `does not need
         acc_token, acc_token_secret = osm_auth.get_access_token(request_token, request_token_secret)
 
         print('token: ' + acc_token + ' secret: ' + acc_token_secret)
