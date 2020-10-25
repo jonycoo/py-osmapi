@@ -1,9 +1,9 @@
-from telegram.ext import ConversationHandler, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler, DispatcherHandlerStop
-from telegram import Update, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import ConversationHandler, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 import osm.osm_util
 import osm.osm_api
 import logging
-import io
+import database
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -17,6 +17,8 @@ CHOOSING, TAG_CHOICE, VALUE_REPLY, TYPING_REPLY, LOCATION, TEXT, GPX_DESCRIPTION
 class ElemEditor:
     def __init__(self):
         self.osmapi = osm.osm_api.OsmApi()
+        auth_db = database.DBLite()
+        self.auth_db_con = auth_db.create_connection('userdata.db')
         pass
 
     def get_conversation(self):
@@ -25,8 +27,7 @@ class ElemEditor:
                           MessageHandler(Filters.document, self.gpx_up)],
 
             states={
-                 CHOOSING: [MessageHandler(Filters.regex('tag'), self.tag),
-                            ],
+                 CHOOSING: [MessageHandler(Filters.regex('tag'), self.tag)],
 
 
                  TAG_CHOICE: [MessageHandler(Filters.text, self.tag)],
@@ -34,16 +35,15 @@ class ElemEditor:
                  TYPING_REPLY: [MessageHandler(Filters.text, self.value),
                                 MessageHandler(Filters.location, self.location)
                                 ],
-                GPX_NAME: [MessageHandler(Filters.text, self.gpx_name)],
+                 GPX_NAME: [MessageHandler(Filters.text, self.gpx_name)],
 
-                GPX_DESCRIPTION: [CommandHandler('skip', self.gpx_desc),
-                                  MessageHandler(Filters.text, self.gpx_desc)],
-                GPX_TAG: [CommandHandler('skip', self.gpx_up_content),
-                          MessageHandler(Filters.text, self.gpx_desc)],
+                 GPX_DESCRIPTION: [CommandHandler('skip', self.gpx_desc),
+                                   MessageHandler(Filters.text, self.gpx_desc)],
+                 GPX_TAG: [CommandHandler('skip', self.gpx_up_content),
+                           MessageHandler(Filters.text, self.gpx_desc)],
 
-                GPX_SAVE:[CommandHandler('save', self.gpx_up_content),
-                          CallbackQueryHandler(self.gpx_toggles, 0)
-                          ]
+                 GPX_SAVE: [CommandHandler('save', self.gpx_up_content),
+                            CallbackQueryHandler(self.gpx_toggles, 0)]
              },
 
             fallbacks=[MessageHandler(Filters.regex('cancel'), self.cancel),
