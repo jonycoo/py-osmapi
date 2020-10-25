@@ -310,7 +310,7 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    def delete_gpx(self, gpx_id: int):
+    def delete_gpx(self, gpx_id: int, auth):
         """
         Authorisation required
 

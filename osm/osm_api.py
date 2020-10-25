@@ -407,11 +407,11 @@ class OsmApi(a_osm_api.OsmApi):
             logger.debug('not updated')
             raise Exception(data.text)
 
-    def delete_gpx(self, tid: int):
+    def delete_gpx(self, tid: int, auth):
         """
         DELETE /api/0.6/gpx/#id
         """
-        data = requests.delete(self.base_url + '/gpx/' + str(tid), auth=(NAME, PASS))
+        data = requests.delete(self.base_url + '/gpx/' + str(tid), auth=auth)
         if data.ok:
             logger.debug('deleted')
         else:
@@ -427,11 +427,11 @@ class OsmApi(a_osm_api.OsmApi):
             return data.text
         raise Exception(data.text)
 
-    def get_own_gpx(self) -> list:
+    def get_own_gpx(self, auth) -> list:
         """
         GET /api/0.6/user/gpx_files
         """
-        data = requests.get(self.base_url + '/user/gpx_files', auth=(NAME, PASS))
+        data = requests.get(self.base_url + '/user/gpx_files', auth=auth)
         if data.ok:
             return self.__parse_gpx_info(data.text)
         raise Exception(data.text)
@@ -496,9 +496,8 @@ class OsmApi(a_osm_api.OsmApi):
                           'traces_count': int(user.find('traces').get('count'))})
         return users
 
-    def get_own_preferences(self) -> dict:
+    def get_own_preferences(self, auth) -> dict:
         """
-        needs Authorisation
         GET /api/0.6/user/preferences
 
         :returns: dictionary with preferences
@@ -556,12 +555,12 @@ class OsmApi(a_osm_api.OsmApi):
             raise ValueError(data.text)
         raise Exception(data.text)
 
-    def create_note(self, text: str, lat: float, lon: float) -> Note:
+    def create_note(self, text: str, lat: float, lon: float, auth) -> Note:
         """
         POST /api/0.6/notes?lat=<lat>&lon=<lon>&text=<ANote>
         """
         # authorisation optional
-        data = requests.post(self.base_url + '/notes', params={'lat': lat, 'lon': lon, 'text': text}, auth=(NAME, PASS))
+        data = requests.post(self.base_url + '/notes', params={'lat': lat, 'lon': lon, 'text': text}, auth=auth)
         logger.debug(data.text)
         if data.ok:
             tree = ElemTree.fromstring(data.text)
@@ -570,12 +569,12 @@ class OsmApi(a_osm_api.OsmApi):
             raise ValueError(data.text)
         raise Exception(data.text)
 
-    def comment_note(self, nid: int, text: str) -> Note:
+    def comment_note(self, nid: int, text: str, auth) -> Note:
         """
         POST /api/0.6/notes/#id/comment?text=<ANoteComment>
         """
         data = requests.post(self.base_url + '/notes/{}/comment'.format(str(nid)),
-                             params={'text': text}, auth=(NAME, PASS))
+                             params={'text': text}, auth=auth)
         logger.debug(data.text)
         if data.ok:
             tree = ElemTree.fromstring(data.text)
@@ -588,12 +587,12 @@ class OsmApi(a_osm_api.OsmApi):
             raise ConflictError(data.text)
         raise Exception(data.text)
 
-    def close_note(self, nid: int, text: str) -> Note:
+    def close_note(self, nid: int, text: str, auth) -> Note:
         """
         POST /api/0.6/notes/#id/close?text=<Comment>
         """
         data = requests.post(self.base_url + '/notes/{}/close'.format(str(nid)),
-                             params={'text': text}, auth=(NAME, PASS))
+                             params={'text': text}, auth=auth)
         logger.debug(data.text)
         if data.ok:
             tree = ElemTree.fromstring(data.text)
@@ -606,12 +605,12 @@ class OsmApi(a_osm_api.OsmApi):
             raise ConflictError(data.text)
         raise Exception(data.text)
 
-    def reopen_note(self, nid: int, text: str):
+    def reopen_note(self, nid: int, text: str, auth):
         """
         POST /api/0.6/notes/#id/reopen?text=<ANoteComment>
         """
         data = requests.post(self.base_url + '/notes/{}/close'.format(str(nid)),
-                             params={'text': text}, auth=(NAME, PASS))
+                             params={'text': text}, auth=auth)
         logger.debug(data.text)
         if data.ok:
             tree = ElemTree.fromstring(data.text)
