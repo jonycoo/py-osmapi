@@ -13,13 +13,6 @@ from ee_osmose import *
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(lineno)d - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-try:
-    NAME = os.environ['OSM_USERNAME']
-    PASS = os.environ['OSM_PASSWORD']
-except KeyError:
-    logger.exception('no "OSM_USERNAME" or "OSM_PASSWORD" in environment variables.', 'Exit program')
-    exit()
-
 
 class OsmApi(a_osm_api.OsmApi):
     base_url = 'https://master.apis.dev.openstreetmap.org/api/0.6'
@@ -38,7 +31,7 @@ class OsmApi(a_osm_api.OsmApi):
             return permissions
         raise Exception(data.text)
 
-    ''' changeset '''
+    ############################################### CHANGESET #######################################################
 
     def create_changeset(self, tags: dict, auth) -> int:
         """
@@ -77,12 +70,12 @@ class OsmApi(a_osm_api.OsmApi):
             raise NoneFoundError(data.text)
         raise Exception(data.text)
 
-    def close_changeset(self, cid: int):
+    def close_changeset(self, cid: int, auth):
         """
         closes a changeset
         PUT /api/0.6/changeset/#id/close
         """
-        data = requests.get(self.base_url + '/changeset/{}/close'.format(cid), auth=(NAME, PASS))
+        data = requests.get(self.base_url + '/changeset/{}/close'.format(cid), auth=auth)
         if data.ok:
             return None
         elif data.status_code == HTTPStatus.NOT_FOUND:
@@ -161,7 +154,7 @@ class OsmApi(a_osm_api.OsmApi):
             raise NoneFoundError(data.text)
         raise Exception(data.text)
 
-    ''' Element '''
+    ############################################## ELEMENT #########################################################
 
     def create_element(self, elem: Element, cid: int, auth) -> int:
         """
@@ -367,7 +360,7 @@ class OsmApi(a_osm_api.OsmApi):
             return elems
         raise Exception(data.text)
 
-    ''' GPX '''
+    ################################################## GPX ########################################################
 
     def get_gpx_bbox(self, bbox: tuple, page: int = 0) -> list:
         """
@@ -447,7 +440,7 @@ class OsmApi(a_osm_api.OsmApi):
             lst.append(attrib)
         return lst
 
-    ''' user '''
+    ################################################# USER ######################################################
 
     def get_user(self, uid: int) -> dict:
         """
@@ -504,7 +497,7 @@ class OsmApi(a_osm_api.OsmApi):
         """
         raise NotImplementedError
 
-    ''' notes '''
+    ################################################# NOTE ######################################################
 
     def __parse_notes(self, tree: ElemTree.Element):
         lst = []
@@ -663,7 +656,8 @@ class OsmApi(a_osm_api.OsmApi):
             tags[item.get('k')] = item.get('v')
         return tags
 
-    def __kv_serial(self, tags: dict, parent: ElemTree.Element) -> list:
+    def __kv_serial(self, tags: dict, parent: ElemTree.Element):
         lst = []
         for key, value in tags.items():
             ElemTree.SubElement(parent, 'tag', {'k': key, 'v': value})
+

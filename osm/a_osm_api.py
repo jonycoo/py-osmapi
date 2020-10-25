@@ -27,7 +27,7 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    ''' changeset '''
+    ############################################### CHANGESET #######################################################
 
     def create_changeset(self, tags: dict, auth) -> int:
         """
@@ -59,7 +59,7 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    def close_changeset(self, cid: int):
+    def close_changeset(self, cid: int, auth):
         """
         closes a changeset
         Authorisation required
@@ -130,7 +130,7 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    ''' Element '''
+    ############################################## ELEMENT #########################################################
 
     def create_element(self, elem: Element, cid: int, auth) -> int:
         """
@@ -261,7 +261,7 @@ class OsmApi:
 
     # reduction purposefully left out (only for moderators)
 
-    ''' GPX '''
+    ################################################## GPX ########################################################
 
     def get_gpx_bbox(self, bbox: tuple, page: int) -> dict:
         """
@@ -345,7 +345,7 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    ''' user '''
+    ################################################# USER ######################################################
 
     def get_user(self, uid: int) -> dict:
         """
@@ -426,7 +426,7 @@ class OsmApi:
         :param auth: either OAuth1 object or tuple (username, password)
         """
 
-    ''' notes '''
+    ################################################# NOTE ######################################################
 
     def get_notes_bbox(self, bbox: tuple, limit: int = 100, closed: int = 7) -> list:
         """
