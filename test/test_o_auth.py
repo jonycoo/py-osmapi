@@ -1,7 +1,7 @@
 import unittest
 import os
 import osm.osm_api
-from rauth import OAuth1Service, OAuth1Session
+from rauth import OAuth1Service
 from requests_oauthlib import OAuth1
 
 
@@ -32,13 +32,9 @@ class MyTestCase(unittest.TestCase):
 
         print('token: ' + acc_token + ' secret: ' + acc_token_secret)
         req_token = OAuth1(osm_auth.consumer_key, osm_auth.consumer_secret, acc_token, acc_token_secret)
-        # oauth_session = OAuth1Session(osm_auth.consumer_key, osm_auth.consumer_secret, acc_token, acc_token_secret)
-        # data = oauth_session.get('https://master.apis.dev.openstreetmap.org/api/0.6' + '/user/details')
         api = osm.osm_api.OsmApi()
         user = api.get_current_user(req_token)
         print(user)
-        #if data.ok:
-        #    print(data.text)
 
 
 if __name__ == '__main__':
