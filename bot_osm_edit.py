@@ -4,6 +4,7 @@ import osm.osm_util
 import osm.osm_api
 import logging
 import database
+import o_auth
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -11,14 +12,15 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 logger = logging.getLogger(__name__)
 
-CHOOSING, TAG_CHOICE, VALUE_REPLY, TYPING_REPLY, LOCATION, TEXT, GPX_DESCRIPTION, GPX_NAME, GPX_TAG, GPX_SAVE, SAVE = range(11)
+CHOOSING, TAG_CHOICE, VALUE_REPLY, TYPING_REPLY, LOCATION, TEXT, GPX_DESCRIPTION, GPX_NAME, GPX_TAG, GPX_SAVE, SAVE = \
+    range(11)
 
 
 class ElemEditor:
     def __init__(self):
         self.osmapi = osm.osm_api.OsmApi()
-        auth_db = database.DBLite()
-        self.auth_db_con = auth_db.create_connection('userdata.db')
+        self.auth_db = database.DBLite()
+        self.auth_db_con = self.auth_db.create_connection('userdata.db')
         pass
 
     def get_conversation(self):
@@ -145,3 +147,8 @@ class ElemEditor:
     def cancel(self, update, context):
         update.callback_query.answer('exit edit conversation')
         return ConversationHandler.END
+
+    def user_auth(self, update: Update):
+        auth_token, auth_secret = self.auth_db.select_credentials(update.effective_user.id)
+        o_auth.Authorisation.cr_auth_token(auth_token, auth_secret)
+

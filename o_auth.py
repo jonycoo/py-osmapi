@@ -1,7 +1,5 @@
 import os
 import logging
-import osm.osm_api
-from rauth import OAuth1Service
 from requests_oauthlib import OAuth1
 from rauth import OAuth1Service
 
@@ -17,7 +15,7 @@ except KeyError:
 
 class Authorisation:
 
-    def __init__(self, req_token_url=None, base_auth_url=None, acc_token_url=None):
+    def __init__(self):
         self.osm_auth = OAuth1Service(
             name='osm',
             consumer_key=CONSUMER_KEY,
@@ -38,6 +36,6 @@ class Authorisation:
         return auth_token
 
     @staticmethod
-    def cr_auth_token(self, auth_token, auth_secret):
+    def cr_auth_token(auth_token, auth_secret):
         return OAuth1(CONSUMER_KEY, CONSUMER_SECRET, auth_token, auth_secret)
 
