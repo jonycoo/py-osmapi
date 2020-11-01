@@ -148,15 +148,18 @@ class Trace:
 class ChangeSet:
     def __init__(self, cid: int, username: str, uid: int, created: datetime, is_open: bool, bbox: tuple,
                  closed: datetime = None, tags: dict = None, comments: list = None):
+        """
+        :param bbox (minlon, minlat, maxlon, maxlat)
+        """
         self._id = cid
         self._user = username
         self._uid = uid
         self._created = created
         self.open = is_open
-        self.maxlon = bbox[0] or None
-        self.maxlat = bbox[1] or None
-        self.minlon = bbox[2] or None
-        self.minlan = bbox[3] or None
+        self.minlon = bbox[0] or None
+        self.minlan = bbox[1] or None
+        self.maxlon = bbox[2] or None
+        self.maxlat = bbox[3] or None
         self.closed = closed
         self.tags = tags or {}
         self.comments = comments or []
@@ -177,7 +180,7 @@ class ChangeSet:
 
     @property
     def bbox(self):
-        return self.maxlon, self.maxlat, self.minlon, self.minlan
+        return self.minlon, self.minlan, self.maxlon, self.maxlat
 
 
 def create_bbox(lat: float, lon: float, rad: int):

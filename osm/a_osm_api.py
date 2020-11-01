@@ -73,20 +73,30 @@ class OsmApi:
 
     def download_changeset(self, cid: int) -> str:
         """
-        GET /api/0.6/changeset/#id/download
+        downloads a OsmChange document
+
+        :param cid: changeset IID
+        :raises NoneFoundError: does not exist
         """
         raise NotImplementedError
 
-    def get_changesets(self, bbox: tuple = None, user: str = '', time1: datetime = None, time2: datetime = None,
-                       is_open: bool = True, is_closed: bool = True, changesets: list = None) -> list:
+    def get_changesets(self, bbox: tuple = None, user: str = '', time: datetime = None,
+                       is_open: bool = False, is_closed: bool = False, changesets: list = None) -> list:
         """
         returns max 100 changesets matching all provided parameters
-        GET /api/0.6/changesets
-        parameters by ?/&
+
+        :param bbox:(minlon, minlat, maxlon, maxlat)
+        :param user: username or user_id
+        :param time: Time format: Anything that this_ Ruby function will parse.
+        :param is_open: xor is_closed
+        :param is_closed: xor is_open
+        :param changesets: changeset_ids as list
+
+        .. _this: https://ruby-doc.org/stdlib-2.7.2/libdoc/date/rdoc/DateTime.html#method-c-parse
         """
         raise NotImplementedError
 
-    def diff_upload(self, cid: int) -> list:
+    def diff_upload(self, cid: int, xml: str, auth) -> list:
         """
         Authorisation required
         POST /api/0.6/changeset/#id/upload
@@ -215,7 +225,7 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    def history_version_element(self, etype: str, eid: int, version: int = None) -> Element:
+    def history_version_element(self, etype: str, eid: int, version: int = 1) -> Element:
         """
         Return specified version of element
         GET /api/0.6/[node|way|relation]/#id/#version
@@ -503,7 +513,7 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    def search_note(self, text: str, limit: int = 100, closed: int = 7, username: str = None, user: int = None,
+    def search_note(self, text: str, limit: int = 100, closed: int = 7, user: str = None,
                     start: datetime = None, end: datetime = None,
                     sort: str = 'updated_at', order: str = 'newest') -> list:
         """
@@ -511,10 +521,9 @@ class OsmApi:
         GET /api/0.6/notes/search?q=<SearchTerm>&limit=&closed=&username=&user=&from=&to=&sort=&order=
 
         :param text: <free text>
-        :param limit: 0-1000
+        :param limit: 0-1000 max amount notes returned
         :param closed: max days closed -1=all, 0=only_open
-        :param username: username
-        :param user: User ID
+        :param user: User ID or Username
         :param start: from earliest date
         :param end: to newer date default: today
         :param sort: created_at or updated_at
