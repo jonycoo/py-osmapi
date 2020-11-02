@@ -316,7 +316,6 @@ class OsmApi:
         :param public: True for public tracks else False
         :param visibility: one of [private, public, trackable, identifiable]
             more https://wiki.openstreetmap.org/wiki/Visibility_of_GPS_traces
-        :returns: None
         """
         raise NotImplementedError
 
@@ -329,11 +328,12 @@ class OsmApi:
         """
         raise NotImplementedError
 
-    def get_meta_gpx(self, gpx_id: int) -> dict:
+    def get_meta_gpx(self, gpx_id: int, auth) -> dict:
         """
         GET /api/0.6/gpx/#id/details
+        Authentication required
 
-        :param gpx_id: id identifying the gpx file as string
+        :param gpx_id: id identifying the gpx file as string or int
         :returns: dictionary representing the metadata
         """
         raise NotImplementedError

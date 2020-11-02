@@ -20,6 +20,10 @@ class MyTestCase(unittest.TestCase):
         data = self.osmo.get_api_versions()
         print(data)
 
+    def test_capability(self):
+        data = self.osmo.get_api_capabilities()
+        print(data)
+
     def test_permissions(self):
         data = self.osmo.get_permissions(self.auth())
         print(data)
@@ -112,6 +116,10 @@ class MyTestCase(unittest.TestCase):
         tid = self.osmo.upload_gpx(gpx, 'test_trace.xml', 'test', {'test', 'osmate'}, self.auth())
         print(tid)
 
+    def test_meta_gpx(self):
+        meta = self.osmo.get_meta_gpx(47, self.auth())
+        print(meta)
+
 #   only works with defined value
 #    def test_delete_gpx(self):
 #        self.osmo.delete_gpx()
@@ -138,7 +146,7 @@ class MyTestCase(unittest.TestCase):
         print(prefs)
 
     def test_set_preference(self):
-        prefs = self.osmo.set_own_preference('hallo', 'welt', self.auth())
+        prefs = self.osmo.set_own_preference('hello', 'welt', self.auth())
         print(prefs)
 
     def test_delete_preference(self):

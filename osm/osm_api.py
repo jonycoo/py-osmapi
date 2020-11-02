@@ -26,11 +26,15 @@ class OsmApi(a_osm_api.OsmApi):
         # allowed by convenience with version
         data = requests.get(self.base_url + '/capabilities')
         if data.ok:
-            # tree = ElemTree.fromstring(data.text)
-            # capabiliy = {}
-            # for item in tree.find('api'):
-            #    pass  # todo turn xml to capability dict
-            return data.text
+            tree = ElemTree.fromstring(data.text)
+            capabiliy = {}
+            for item in tree.find('api').iter():
+                capabiliy[item.tag] = item.attrib
+            blacklist = []
+            for item in tree.findall('policy/imagery/blacklist'):
+                blacklist.append(item.get('regex'))
+            capabiliy['image_blacklist'] = blacklist
+            return capabiliy
         raise Exception(data.text)
 
     def get_permissions(self, auth) -> set:
@@ -542,12 +546,23 @@ class OsmApi(a_osm_api.OsmApi):
         data = requests.delete(self.base_url + '/gpx/' + str(tid), auth=auth)
         if data.ok:
             logger.debug('deleted')
+            return None
         else:
             logger.debug('not deleted')
             raise Exception(data.text)
 
-    def get_meta_gpx(self, gpx_id: int) -> dict:
-        raise NotImplementedError
+    def get_meta_gpx(self, gpx_id: int, auth) -> dict:
+        data = requests.get(self.base_url + '/gpx/{}/details'.format(str(gpx_id)), auth=auth)
+        if data.ok:
+            tree = ElemTree.fromstring(data.text)
+            ret = tree.find('gpx_file').attrib
+            ret['description'] = tree.find('gpx_file/description').text
+            tags = []
+            for tag in tree.findall('gpx_file/tag'):
+                tags.append(tag.text)
+            ret['tags'] = tags
+            return ret
+        raise Exception(data.text)
 
     def get_gpx(self, tid: int) -> str:
         """
@@ -649,7 +664,7 @@ class OsmApi(a_osm_api.OsmApi):
         ret = requests.put(self.base_url + '/user/preferences', data=data, auth=auth)
         if ret.ok:
             return None
-        raise Exception(data.text)
+        raise Exception(ret.text)
 
     def get_own_preference(self, key: str, auth) -> str:
         data = requests.get(self.base_url + '/user/preferences/{}'.format(key), auth=auth)
