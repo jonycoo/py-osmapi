@@ -646,7 +646,7 @@ class OsmApi(a_osm_api.OsmApi):
             ElemTree.SubElement(prefs, 'preference', {'k': key, 'v': value})
         data = ElemTree.tostring(root).decode()
         print(data)
-        ret = requests.put(self.base_url + 'user/preferences', data=data, auth=auth)
+        ret = requests.put(self.base_url + '/user/preferences', data=data, auth=auth)
         if ret.ok:
             return None
         raise Exception(data.text)
@@ -658,13 +658,13 @@ class OsmApi(a_osm_api.OsmApi):
         raise Exception(data.text)
 
     def set_own_preference(self, key: str, value: str, auth):
-        data = requests.put(self.base_url + 'user/preferences/{}'.format(key), data=value, auth=auth)
+        data = requests.put(self.base_url + '/user/preferences/{}'.format(key), data=value, auth=auth)
         if data.ok:
             return None
         raise Exception(data.text)
 
     def delete_own_preference(self, key: str, auth):
-        data = requests.delete(self.base_url + 'user/preferences/{}'.format(key), auth=auth)
+        data = requests.delete(self.base_url + '/user/preferences/{}'.format(key), auth=auth)
         if data.ok:
             return None
         raise Exception(data.text)

@@ -134,11 +134,15 @@ class MyTestCase(unittest.TestCase):
         print(answ)
 
     def test_get_preference(self):
-        prefs = self.osmo.get_own_preference('gps.trace.visibility', self.auth())
+        prefs = self.osmo.get_own_preference('hello', self.auth())
         print(prefs)
 
     def test_set_preference(self):
         prefs = self.osmo.set_own_preference('hallo', 'welt', self.auth())
+        print(prefs)
+
+    def test_delete_preference(self):
+        prefs = self.osmo.delete_own_preference('hello', self.auth())
         print(prefs)
 
     def tests_get_note(self):
