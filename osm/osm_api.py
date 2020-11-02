@@ -5,7 +5,7 @@ import dateutil.parser
 import xml.etree.ElementTree as ElemTree
 from osm.osm_util import *
 from osm import a_osm_api
-from ee_osmose import *
+from osm.exceptions import *
 
 
 # Enable logging

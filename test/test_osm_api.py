@@ -1,6 +1,6 @@
 import unittest
 import os
-import ee_osmose
+from osm import exceptions
 import osm.osm_api as osmapi
 import osm.osm_util
 
@@ -99,7 +99,7 @@ class MyTestCase(unittest.TestCase):
             print(item.__repr__)
 
     def test_get_elem_bbox_neg(self):
-        with self.assertRaises(ee_osmose.NoneFoundError):
+        with self.assertRaises(exceptions.NoneFoundError):
             # westlimit=9.3852744541; southlimit=49.1700528219; eastlimit=9.38678722; northlimit=49.1708595043
             print(osm.osm_util.create_bbox(52.5134, 13.4374, 1000))
             elems = self.osmo.get_element_bbox((9.3849565809, 49.1700030402, 9.3867590254, 49.1707360702))
