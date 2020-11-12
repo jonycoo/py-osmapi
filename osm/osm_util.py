@@ -1,13 +1,13 @@
 import json
 import math
 from datetime import datetime
-import dateutil.parser
 
 OSM_URL = 'https://master.apis.dev.openstreetmap.org'
 
+
 class Element:
     def __init__(self, eid: int, version: int, changeset: int,
-                 user: str, uid: int, created: str, visible: bool, tags: dict):
+                 user: str, uid: int, created: datetime, visible: bool, tags: dict):
         """
 
         :param eid:
@@ -24,7 +24,7 @@ class Element:
         self.e_type = 'element'
 
     def __repr__(self):
-        return json.dumps(self.__dict__, default=lambda o: o.__dict__)
+        return json.dumps(self.__dict__, default=lambda o: _default(o))
 
     def __str__(self):
         return str(self.id)
@@ -38,19 +38,9 @@ class Element:
         return self.e_type
 
 
-class MicroElem:
-    def __init__(self, eid, e_type, tags: dict = None):
-        self.eid = eid
-        self.e_type = e_type
-        self.tags = tags or {}
-
-    def __str__(self):
-        return self.e_type + str(self.eid)
-
-
 class Node(Element):
     def __init__(self, eid: int, lat: float, lon: float, version: int, changeset: int,
-                 user: str, uid: int, created: str, visible: bool, tags: dict):
+                 user: str, uid: int, created: datetime, visible: bool, tags: dict):
         super().__init__(eid, version, changeset, user, uid, created, visible, tags)
         self.lat = lat
         self.lon = lon
@@ -59,7 +49,7 @@ class Node(Element):
 
 class Way(Element):
     def __init__(self, eid: int, nodes: list, version: int, changeset: int,
-                 user: str, uid: int, created: str, visible: bool, tags: dict):
+                 user: str, uid: int, created: datetime, visible: bool, tags: dict):
         super().__init__(eid, version, changeset, user, uid, created, visible, tags)
         self.nodes = nodes
         self.e_type = 'way'
@@ -67,7 +57,7 @@ class Way(Element):
 
 class Relation(Element):
     def __init__(self, eid: int, members: list, version: int, changeset: int,
-                 user: str, uid: int, created: str, visible: bool, tags: dict):
+                 user: str, uid: int, created: datetime, visible: bool, tags: dict):
         super().__init__(eid, version, changeset, user, uid, created, visible, tags)
         self.members = members
         self.e_type = 'relation'
@@ -90,28 +80,18 @@ class Comment:
 
 
 class Note:
-    def __init__(self, nid: int, lat: float, lon: float, created: str, is_open: bool, comments: list):
+    def __init__(self, nid: int, lat: float, lon: float, created: datetime, is_open: bool,
+                 comments: list, closed: datetime = None):
         self._id = nid
         self.lat = lat
         self.lon = lon
-        try:
-            dateutil.parser.parse(created)
-            self._created = created
-        except ValueError:
-            self._created = None
-        # todo date_closed
-        self._open = is_open
-        self._comments = comments
+        self.open = is_open
+        self.comments = comments
+        self.created = created
+        self.closed = closed
 
     def __repr__(self):
-        return json.dumps(self.__dict__, default=lambda o: o.__dict__)
-
-    @property
-    def created(self) -> datetime:
-        if self._created:
-            return dateutil.parser.parse(self._created)
-        else:
-            return None
+        return json.dumps(self.__dict__, default=lambda o: _default(o))
 
     @property
     def id(self):
@@ -123,13 +103,13 @@ class Note:
 
 
 class Trace:
-    def __init__(self, tid: int, gpx: str, filename: str, username: str, time: str,
+    def __init__(self, tid: int, gpx: str, filename: str, username: str, created: datetime,
                  desc: str = None, tags: set = None, visibility: str = 'trackable'):
         self._tid = tid
         self.gpx = gpx
         self.name = filename
-        self._username = username
-        self._timestamp = time
+        self.username = username
+        self.created = created
         self.desc = desc or 'no Description'
         self.tags = tags or []
         self.visibility = visibility
@@ -140,6 +120,10 @@ class Trace:
     def __str__(self):
         return self.name
 
+    @property
+    def id(self):
+        return self._tid
+
     @staticmethod
     def url(osm_user, tid):
         return OSM_URL + '/user/' + osm_user + '/traces/' + tid
@@ -149,23 +133,23 @@ class ChangeSet:
     def __init__(self, cid: int, username: str, uid: int, created: datetime, is_open: bool, bbox: tuple,
                  closed: datetime = None, tags: dict = None, comments: list = None):
         """
-        :param bbox (minlon, minlat, maxlon, maxlat)
+        :param bbox (min_lon, min_lat, max_lon, max_lat)
         """
         self._id = cid
-        self._user = username
-        self._uid = uid
-        self._created = created
+        self.user = username
+        self.uid = uid
+        self.created = created
         self.open = is_open
-        self.minlon = bbox[0] or None
-        self.minlan = bbox[1] or None
-        self.maxlon = bbox[2] or None
-        self.maxlat = bbox[3] or None
+        self.min_lon = bbox[0] or None
+        self.min_lat = bbox[1] or None
+        self.max_lon = bbox[2] or None
+        self.max_lat = bbox[3] or None
         self.closed = closed
         self.tags = tags or {}
         self.comments = comments or []
 
     def __repr__(self):
-        return json.dumps(self.__dict__, default=lambda o: o.__dict__)
+        return json.dumps(self.__dict__, default=lambda o: _default(o))
 
     @property
     def id(self):
@@ -180,7 +164,10 @@ class ChangeSet:
 
     @property
     def bbox(self):
-        return self.minlon, self.minlan, self.maxlon, self.maxlat
+        return self.min_lon, self.min_lat, self.max_lon, self.max_lat
+
+
+EARTH_RAD = float(6378000)
 
 
 def create_bbox(lat: float, lon: float, rad: int):
@@ -192,7 +179,6 @@ def create_bbox(lat: float, lon: float, rad: int):
     :param rad: radius in meters
     """
 
-    EARTH_RAD = float(6378000)
     lat_d = (math.asin(float(rad) / (EARTH_RAD * math.cos(math.pi * lat / 180)))) * 180 / math.pi
     lon_d = (math.asin(float(rad) / EARTH_RAD)) * 180 / math.pi
 
@@ -204,3 +190,20 @@ def create_bbox(lat: float, lon: float, rad: int):
     min_lon = round(lon - lon_d, dec)
 
     return min_lon, min_lat, max_lon, max_lat
+
+
+def _default(obj):
+    """Default JSON serializer."""
+    import calendar
+
+    if isinstance(obj, datetime):
+        if obj.utcoffset() is not None:
+            obj = obj - obj.utcoffset()
+        millis = int(
+            calendar.timegm(obj.timetuple()) * 1000 +
+            obj.microsecond / 1000
+        )
+        return millis
+    else:
+        return obj.__dict__
+    # raise TypeError('Not sure how to serialize %s' % (obj,))

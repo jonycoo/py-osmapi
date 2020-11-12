@@ -1,15 +1,11 @@
 import requests
 from http import HTTPStatus
 import logging
-import dateutil.parser
 import xml.etree.ElementTree as ElemTree
 from osm.osm_util import *
 from osm import a_osm_api
 from osm.exceptions import *
 
-
-# Enable logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(lineno)d - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -209,8 +205,13 @@ class OsmApi(a_osm_api.OsmApi):
             bbox = cs_prop['min_lon'], cs_prop['min_lat'], cs_prop['max_lon'], cs_prop['max_lat']
         except KeyError:
             bbox = (None, None, None, None)
-        ch_set = ChangeSet(cs_prop['id'], cs_prop['user'], cs_prop['uid'], cs_prop['created_at'],
-                           True, bbox, cs_prop['open'] or datetime.fromisoformat(cs_prop['closed_at']), tags, comments)
+        created = datetime.strptime(cs_prop['created_at'], "%Y-%m-%dT%H:%M:%SZ")
+        if cs_prop['created_at'] is True:
+            closed = None
+        else:
+            closed = datetime.strptime(cs_prop['closed_at'], "%Y-%m-%dT%H:%M:%SZ")
+        ch_set = ChangeSet(cs_prop['id'], cs_prop['user'], cs_prop['uid'], created,
+                           cs_prop['open'], bbox, closed, tags, comments)
         return ch_set
 
     def comm_changeset(self, cid: int, text: str, auth) -> ChangeSet:
@@ -294,7 +295,7 @@ class OsmApi(a_osm_api.OsmApi):
         eid = elem.get('id')
         version = int(elem.get('version'))
         changeset = elem.get('changeset')
-        cr_date = elem.get('timestamp')
+        cr_date = datetime.strptime(elem.get('timestamp'), "%Y-%m-%dT%H:%M:%SZ")
         user = elem.get('user')
         uid = elem.get('uid')
         visible = bool(elem.get('visible'))
@@ -328,7 +329,8 @@ class OsmApi(a_osm_api.OsmApi):
         doc = ElemTree.Element('None')
         if not is_create:
             params = {'id': elem.id, 'version': str(elem.version), 'changeset': str(elem.changeset),
-                      'user': elem.user, 'uid': str(elem.uid), 'visible': str(elem.visible), 'timestamp': elem.created}
+                      'user': elem.user, 'uid': str(elem.uid),
+                      'visible': str(elem.visible), 'timestamp': elem.created}
         else:
             params = {'changeset': str(elem.changeset)}
         if isinstance(elem, Node):
@@ -554,8 +556,10 @@ class OsmApi(a_osm_api.OsmApi):
     def get_meta_gpx(self, gpx_id: int, auth) -> dict:
         data = requests.get(self.base_url + '/gpx/{}/details'.format(str(gpx_id)), auth=auth)
         if data.ok:
+            logger.debug(data.text)
             tree = ElemTree.fromstring(data.text)
             ret = tree.find('gpx_file').attrib
+            ret['timestamp'] = datetime.strptime(ret['timestamp'], "%Y-%m-%dT%H:%M:%SZ")
             ret['description'] = tree.find('gpx_file/description').text
             tags = []
             for tag in tree.findall('gpx_file/tag'):
@@ -587,7 +591,7 @@ class OsmApi(a_osm_api.OsmApi):
         lst = []
         for item in tree.findall('gpx_file'):
             attrib = item.attrib
-            attrib['timestamp'] = str(dateutil.parser.isoparse(attrib['timestamp']))
+            attrib['timestamp'] = datetime.strptime(attrib['timestamp'], "%Y-%m-%dT%H:%M:%SZ")
             for info in item:
                 attrib[info.tag] = info.text
             lst.append(attrib)
@@ -692,21 +696,23 @@ class OsmApi(a_osm_api.OsmApi):
             lon = item.get('lon')
             lat = item.get('lat')
             nid = item.find('id').text
-            created = dateutil.parser.parse(item.find('date_created').text)
+            main_created = datetime.strptime(item.find('date_created').text, "%Y-%m-%d %H:%M:%S UTC")
             is_open = item.find('status').text
             if not is_open == 'closed':
                 is_open = True
             else:
                 is_open = False
+                datetime.strptime(item.find('date_closed').text, "%Y-%m-%d %H:%M:%S UTC")
+
             comments = []
             for comment in item.findall('comments/comment'):
-                created = comment.find('date').text
+                created = datetime.strptime(comment.find('date').text, "%Y-%m-%d %H:%M:%S UTC")
                 uid = comment.find('uid').text
                 user = comment.find('user').text
                 text = comment.find('text').text
                 action = comment.find('action').text
                 comments.append(Comment(text, uid, user, created, action))
-            lst.append(Note(nid, lat, lon, created, is_open, comments))
+            lst.append(Note(nid, lat, lon, main_created, is_open, comments))
         return lst
 
     def get_notes_bbox(self, bbox: tuple, limit: int = 100, closed: int = 7) -> list:
