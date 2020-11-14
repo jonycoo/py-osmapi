@@ -3,22 +3,29 @@ from http import HTTPStatus
 import logging
 import xml.etree.ElementTree as ElemTree
 from osm.osm_util import *
-from osm import a_osm_api
 from osm.exceptions import *
 
 logger = logging.getLogger(__name__)
 
 
-class OsmApi(a_osm_api.OsmApi):
+class OsmApi:
     base_url = 'https://master.apis.dev.openstreetmap.org/api/0.6'
 
     def get_api_versions(self):
+        """
+        :returns: supported API versions
+        """
         data = requests.get('https://master.apis.dev.openstreetmap.org/api' + '/versions')
         if data.ok:
-            return data.text
+            return ElemTree.fromstring(data.text).find('api/version').text
         raise Exception(data.text)
 
-    def get_api_capabilities(self):
+    def get_api_capabilities(self) -> dict:
+        """
+        Max / Min values
+        image blacklisting
+        :returns:
+        """
         # allowed by convenience with version
         data = requests.get(self.base_url + '/capabilities')
         if data.ok:
@@ -36,7 +43,9 @@ class OsmApi(a_osm_api.OsmApi):
     def get_permissions(self, auth) -> set:
         """
         current permissions
-        GET /api/0.6/permissions
+        Authorisation required else None
+        :param auth: either OAuth1 object or tuple (username, password)
+        :returns: set of all current permissions
         """
         data = requests.get(self.base_url + '/permissions', auth=auth)
         if data.ok:
@@ -44,14 +53,18 @@ class OsmApi(a_osm_api.OsmApi):
             permissions = set()
             for item in tree.findall('permissions/permission'):
                 permissions.add(item.get('name'))
-            return permissions
+            return permissions if len(permissions) else None
         raise Exception(data.text)
 
     ############################################### CHANGESET #######################################################
 
-    def create_changeset(self, tags: dict, auth) -> int:
+    def open_changeset(self, tags: dict, auth) -> int:
         """
-        PUT /api/0.6/changeset/create
+        opens a new changeset and returns its id
+        Authorisation required
+
+        :param tags: Dictionary containing additional tags
+        :param auth: either OAuth1 object or tuple (username, password)
         :returns: changeset ID
         """
         root = ElemTree.Element('osm')
@@ -75,8 +88,10 @@ class OsmApi(a_osm_api.OsmApi):
         A Call to get a changeset optionally with discussion.
         no elements included
 
-        GET /api/0.6/changeset/#id?include_discussion=
-        exclude discussion by <empty> or omitting
+        :param cid: changeset ID
+        :param discussion: include changeset discussion?
+        :returns: dictionary representation of the changeset
+        :raises NoneFoundError: no changeset matching this ID
         """
         url = self.base_url + '/changeset/{}'.format(cid)
         if discussion:
@@ -92,7 +107,12 @@ class OsmApi(a_osm_api.OsmApi):
 
     def edit_changeset(self, changeset: ChangeSet, auth):
         """
-        edits only changeset tags only tags in this update remain in changset
+        edits only changeset tags, only tags in this update remain in changeset
+
+        :param changeset: ChangeSet object
+        :param auth: either OAuth1 object or tuple (username, password)
+        :raises NoneFoundError: no changeset of that ID
+        :raises ConflictError: other user than creator trying to use changeset / or changeset already closed.
         """
         root = ElemTree.Element('osm')
         cs = ElemTree.SubElement(root, 'changeset')
@@ -111,7 +131,12 @@ class OsmApi(a_osm_api.OsmApi):
     def close_changeset(self, cid: int, auth):
         """
         closes a changeset
-        PUT /api/0.6/changeset/#id/close
+        Authorisation required
+
+        :param cid: changeset ID
+        :param auth: either OAuth1 object or tuple (username, password)
+        :raises NoneFoundError: no changeset of that ID
+        :raises ConflictError: other user than creator trying to use changeset / or changeset already closed.
         """
         data = requests.get(self.base_url + '/changeset/{}/close'.format(cid), auth=auth)
         if data.ok:
@@ -124,7 +149,10 @@ class OsmApi(a_osm_api.OsmApi):
 
     def download_changeset(self, cid: int) -> str:
         """
-        GET /api/0.6/changeset/#id/download
+        downloads a OsmChange document
+
+        :param cid: changeset ID
+        :raises NoneFoundError: no changeset of that ID
         """
         data = requests.get(self.base_url + '/changeset/{}/download'.format(cid))
         if data.ok:
@@ -136,7 +164,17 @@ class OsmApi(a_osm_api.OsmApi):
     def get_changesets(self, bbox: tuple = None, user: str = '', time: datetime = None,
                        is_open: bool = False, is_closed: bool = False, changesets: list = None) -> list:
         """
-        GET /api/0.6/changesets
+        max 100 changesets matching all provided parameters
+
+        :param bbox:(min_lon, min_lat, max_lon, max_lat)
+        :param user: username or user_id
+        :param time: Time format: Anything that this_ Ruby function will parse.
+        :param is_open: xor is_closed
+        :param is_closed: xor is_open
+        :param changesets: changeset_ids as list
+        :returns: found changesets in a list
+
+        .. _this: https://ruby-doc.org/stdlib-2.7.2/libdoc/date/rdoc/DateTime.html#method-c-parse
         """
         params = {}
         if bbox:
@@ -171,6 +209,28 @@ class OsmApi(a_osm_api.OsmApi):
         raise Exception(data.text)
 
     def diff_upload(self, cid: int, xml: str, auth) -> list:
+        """
+        uploads all changes at once, an error rolls back all (All or Nothing)
+
+        - each element must carry a changeset and a version attribute, except when you are creating an element where the
+          version is not required as the server sets that for you. The changeset must be the same as the
+          changeset ID being uploaded to.
+        - a <delete> block in the OsmChange document may have an if-unused attribute (the value of which is ignored).
+          If this attribute is present, then the delete operation(s) in this block are conditional and will only be
+          executed if the object to be deleted is not used by another object. Without the if-unused, such a situation
+          would lead to an error, and the whole diff upload would fail. Setting the attribute will also cause
+          deletions of already deleted objects to not generate an error.
+        - OsmChange documents generally have user and uid attributes on each element.
+          These are not required in the document uploaded to the API.
+
+        Authorisation required
+
+        :param cid: changeset id
+        :type cid: int/str
+        :param xml: OsmChange document as a String
+        :param auth: either OAuth1 object or tuple (username, password)
+        :returns: list with dict {type, old_id, new_id, new_version}
+        """
         data = requests.post(self.base_url + '/changeset/{}/upload'.format(cid), data=xml, auth=auth)
         if data.ok:
             changes = []
@@ -217,7 +277,14 @@ class OsmApi(a_osm_api.OsmApi):
     def comm_changeset(self, cid: int, text: str, auth) -> ChangeSet:
         """
         Add a comment to a changeset. The changeset must be closed.
-        POST /api/0.6/changeset/#id/comment
+        Authorisation required
+
+        :param cid: changeset ID
+        :param text: text in new comment
+        :param auth: either OAuth1 object or tuple (username, password)
+        :returns: ChangeSet just commented, no comments
+        :raises ValueError: no textfield present
+        :raises ConflictError: deleted
         """
         data = requests.post(self.base_url + '/changeset/{}/comment'.format(str(cid)),
                              data={'text': text}, auth=auth)
@@ -233,7 +300,12 @@ class OsmApi(a_osm_api.OsmApi):
     def sub_changeset(self, cid: int, auth) -> ChangeSet:
         """
         Subscribes the current authenticated user to changeset discussion
-        POST /api/0.6/changeset/#id/subscribe
+        Authorisation required
+
+        :param cid: changeset ID
+        :param auth: either OAuth1 object or tuple (username, password)
+        :returns: ChangeSet just subscribed
+        :raises ConflictError: already subscribed
         """
         data = requests.post(self.base_url + '/changeset/{}/subscribe'.format(cid), auth=auth)
         if data.ok:
@@ -246,7 +318,11 @@ class OsmApi(a_osm_api.OsmApi):
     def unsub_changeset(self, cid: int, auth) -> ChangeSet:
         """
         Unsubscribe the current authenticated user from changeset discussion
-        POST /api/0.6/changeset/#id/subscribe
+        Authorisation required
+
+        :param cid: changeset ID
+        :param auth: either OAuth1 object or tuple (username, password)
+        :raises NoneFoundError: is not subscribed
         """
         data = requests.post(self.base_url + '/changeset/{}/unsubscribe'.format(cid), auth=auth)
         if data.ok:
@@ -261,8 +337,20 @@ class OsmApi(a_osm_api.OsmApi):
     def create_element(self, elem: Element, cid: int, auth) -> int:
         """
         creates new element of specified type
-        PUT /api/0.6/[node|way|relation]/create
+        Authorisation required
+
+        :param elem: element to get created
+        :param cid: open changeset ID
+        :param auth: either OAuth1 object or tuple (username, password)
         :returns: Element ID
+        :raises NoneFoundError:
+            - When a changeset ID is missing (non consistent error message)
+            - When a node is outside the world
+            - When there are too many nodes for a way -> limit, see capabilities
+        :raises ConflictError:
+            - When changeset already closed
+            - When changeset creator and element creator different
+        :raises ParseError: When a way/relation has nodes that do not exist or are not visible
         """
         elem.changeset = cid
         xml = self.__serial_elem(elem, True)
@@ -276,11 +364,17 @@ class OsmApi(a_osm_api.OsmApi):
         elif data.status_code == HTTPStatus.PRECONDITION_FAILED:
             raise ParseError(data.text)
 
-    def get_element(self, etype: str, eid: int) -> Element:
+    def get_element(self, e_type: str, eid: int) -> Element:
         """
-        GET /api/0.6/[node|way|relation]/#id
+        returns only this element
+
+        :param e_type: type of element ('node'/'way'/'relation')
+        :param eid: element id
+        :returns: requested Element of that Type
+        :raises NoneFoundError: No Element with such id
+        :raises LockupError: Deleted Element
         """
-        data = requests.get(self.base_url + '/{}/{}'.format(etype, eid))
+        data = requests.get(self.base_url + '/{}/{}'.format(e_type, eid))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -351,8 +445,23 @@ class OsmApi(a_osm_api.OsmApi):
 
     def edit_element(self, elem: Element, cid: int, auth) -> int:
         """
-        PUT /api/0.6/[node|way|relation]/#id
-        :returns: New version Number
+        chage tags/position of element
+        Authorisation required
+
+        :param elem: changed element to get uploaded (Node/Way/Relation)
+        :param cid: open changeset id
+        :param auth: either OAuth1 object or tuple (username, password)
+        :returns: New version number
+        :raises ValueError:
+            When a changeset ID is missing
+            When a node is outside the world
+            When there are too many nodes for a way -> limit, see capabilities
+            When the version of the provided element does not match the current database version of the element
+        :raises NoneFoundError: Element ID not found
+        :raises ConflictError:
+            When changeset already closed
+            When changeset creator and element creator different
+        :raises ParseError: When a way/relation has nodes that do not exist or are not visible
         """
         elem.changeset = cid
         data = requests.put(self.base_url + '/{}/{}'.format(elem.e_type, elem.id),
@@ -371,9 +480,27 @@ class OsmApi(a_osm_api.OsmApi):
 
     def delete_element(self, elem: Element, cid: int, auth) -> int:
         """
-        DELETE /api/0.6/[node|way|relation]/#id
+        deletes element
+        Authorisation required
 
+        :param elem: changed element to get deleted (Node/Way/Relation)
+        :param cid: open changeset id
+        :param auth: either OAuth1 object or tuple (username, password)
         :returns: new version number
+        :raises ValueError:
+            When a changeset ID is missing
+            When a node is outside the world
+            When there are too many nodes for a way
+            When the version of the provided element does not match the current database version of the element
+        :raises NonFoundError: Element ID not found
+        :raises ConflictError:
+            When changeset already closed
+            When changeset creator and element creator different
+        :raises LookupError: deleted
+        :raises ParseError:
+            When node is still part of way/relation
+            When way is still part of relation
+            When relation is still part of another relation
         """
         elem.changeset = cid
         data = requests.delete(self.base_url + '/{}/{}'.format(elem.e_type, elem.id),
@@ -392,8 +519,15 @@ class OsmApi(a_osm_api.OsmApi):
             raise ParseError(data.text)
         raise Exception(data.text)
 
-    def history_element(self, etype: str, eid: int) -> list:
-        data = requests.get(self.base_url + '/{}/{}/history'.format(etype, eid))
+    def history_element(self, e_type: str, eid: int) -> list:
+        """
+        complete history of an element
+
+        :param e_type: type of element ('node'/'way'/'relation')
+        :param eid: element id
+        :returns: all versions of that element
+        """
+        data = requests.get(self.base_url + '/{}/{}/history'.format(e_type, eid))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -405,8 +539,16 @@ class OsmApi(a_osm_api.OsmApi):
             raise NoneFoundError(data.text)
         raise Exception(data.text)
 
-    def history_version_element(self, etype: str, eid: int, version: int = 1) -> Element:
-        data = requests.get(self.base_url + '/{}/{}/{}'.format(etype, eid, version))
+    def history_version_element(self, e_type: str, eid: int, version: int = 1) -> Element:
+        """
+        complete history of an element
+
+        :param e_type: type of element ('node'/'way'/'relation')
+        :param eid: element id
+        :param version: defaults to 1
+        :returns: all versions of that element
+        """
+        data = requests.get(self.base_url + '/{}/{}/{}'.format(e_type, eid, version))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -415,11 +557,18 @@ class OsmApi(a_osm_api.OsmApi):
             raise NoneFoundError(data.text)
         raise Exception(data.text)
 
-    def get_elements(self, etype: str, lst_eid: list) -> list:
+    def get_elements(self, e_type: str, lst_eid: list) -> list:
         """
-        GET /api/0.6/[nodes|ways|relations]?#parameters
+        returns multiple elements of same e_type
+
+        :returns: multiple elements as specified in the list of eid
+        :param e_type: element type one of [node, way, relation]
+        :param lst_eid: list of eid
+        :raises ParseError: missing or wrong parameter
+        :raises NoneFoundError: requested object never existed
+        :raises MethodError: you might never try ro request more than ~700 elements at once
         """
-        data = requests.get(self.base_url + '/{}s?{}s={}'.format(etype, etype, ','.join(map(str, lst_eid))))
+        data = requests.get(self.base_url + '/{}s?{}s={}'.format(e_type, e_type, ','.join(map(str, lst_eid))))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -436,11 +585,15 @@ class OsmApi(a_osm_api.OsmApi):
             raise MethodError(data.text)
         raise Exception(data.text)
 
-    def get_relation_of_element(self, etype: str, eid: int) -> list:
+    def get_relation_of_element(self, e_type: str, eid: int) -> list:
         """
-        GET /api/0.6/[node|way|relation]/#id/relations
+        returns all relations containing this Element
+        :param e_type: type of element ('node'/'way'/'relation')
+        :param eid: element id
+        :returns: relations containing this element
+        :raises NoneFoundError: no such element or no relations containing this element
         """
-        data = requests.get(self.base_url + '/{}/{}/relations'.format(etype, eid))
+        data = requests.get(self.base_url + '/{}/{}/relations'.format(e_type, eid))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -454,7 +607,10 @@ class OsmApi(a_osm_api.OsmApi):
 
     def get_ways_of_node(self, eid: int) -> list:
         """
-        GET /api/0.6/node/#id/ways
+        use only on node elements
+
+        :returns: ways directly using this node
+        :raises NoneFoundError: no connected ways found
         """
         data = requests.get(self.base_url + '/node/{}/ways'.format(eid))
         if data.ok:
@@ -470,9 +626,10 @@ class OsmApi(a_osm_api.OsmApi):
 
     def get_element_bbox(self, bbox: tuple) -> list:
         """
-        :returns: all Elements with minimum one Node within this BoundingBox max: 50.000 Elements
-        GET /api/0.6/map?bbox=left,bottom,right,top
+        all elements within bbox
 
+        :returns: all Elements with minimum one Node within this BoundingBox
+        :raise NoneFoundError: either none or over 50.000 elements are found
         """
         data = requests.get(self.base_url + '/map?bbox={}'.format(','.join(map(str, bbox))))
         if data.ok:
@@ -486,8 +643,16 @@ class OsmApi(a_osm_api.OsmApi):
             return elems
         raise Exception(data.text)
 
-    def get_full_element(self, etype: str, eid: int) -> list:
-        data = requests.get(self.base_url + '/{}/{}/full'.format(etype, eid))
+    def get_full_element(self, e_type: str, eid: int) -> list:
+        """
+        returns all elements directly referenced or referenced by 2nd grade
+
+        :param e_type: type of element ('node'/'way'/'relation')refernced
+        :param eid: element id
+        :returns: elements referenced up to 2nd grade with element
+        :raises NoneFoundError: eid not found / element deleted
+        """
+        data = requests.get(self.base_url + '/{}/{}/full'.format(e_type, eid))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -506,7 +671,11 @@ class OsmApi(a_osm_api.OsmApi):
     def get_gpx_bbox(self, bbox: tuple, page: int = 0) -> list:
         """
         returns 5000GPS trackpoints max, increase page for any additional 5000
-        GET /api/0.6/trackpoints?bbox=left,bottom,right,top&page=pageNumber
+        todo bug fix
+
+        :param bbox: (min_lon, min_lat, max_lon, max_lat)
+        :param page: 5000 trackpoints are returned each page todo pages
+        :returns: max 5000 trackpoints within bbox, format GPX Version 1.0
         """
         data = requests.get(self.base_url + '/trackpoints?bbox={}' + ','.join(map(str, bbox)))
         if data.ok:
@@ -517,7 +686,17 @@ class OsmApi(a_osm_api.OsmApi):
                    public: bool = True, visibility: str = 'trackable') -> int:
         """
         uploads gpx trace
-        POST /api/0.6/gpx/create
+        Authorisation required
+
+        :param trace: gpx trace file string
+        :param description: gpx description
+        :param name: file name on osm
+        :param tags: additional tags mappingtour, etc
+        :param auth: either OAuth1 object or tuple (username, password)
+        :param public: True for public tracks else False todo use public
+        :param visibility: one of [private, public, trackable, identifiable]
+            more https://wiki.openstreetmap.org/wiki/Visibility_of_GPS_traces
+        :returns: gpx_id
         """
         content = {'description': description, 'tags': ','.join(tags), 'visibility': visibility}
         req_file = {'file': (name, trace)}
@@ -530,7 +709,16 @@ class OsmApi(a_osm_api.OsmApi):
                    public: bool = True, visibility: str = 'trackable'):
         """
         updates gpx trace
-        PUT /api/0.6/gpx/#id
+        Authorisation required
+
+        :param tid: uploaded trace id
+        :param trace: gpx trace as string
+        :param description: gpx description
+        :param tags: additional tags mapping_tour, etc
+        :param auth: either OAuth1 object or tuple (username, password)
+        :param public: True for public tracks else False
+        :param visibility: one of [private, public, trackable, identifiable]
+            more https://wiki.openstreetmap.org/wiki/Visibility_of_GPS_traces
         """
         content = {'description': description, 'tags': ','.join(tags), 'public': public, 'visibility': visibility}
         req_file = {'file': ('test-trace.gpx', trace)}
@@ -543,7 +731,11 @@ class OsmApi(a_osm_api.OsmApi):
 
     def delete_gpx(self, tid: int, auth):
         """
-        DELETE /api/0.6/gpx/#id
+        deletes own gpx indicated by ID
+        Authorisation required
+
+        :param tid: trace ID
+        :param auth: either OAuth1 object or tuple (username, password)
         """
         data = requests.delete(self.base_url + '/gpx/' + str(tid), auth=auth)
         if data.ok:
@@ -553,8 +745,15 @@ class OsmApi(a_osm_api.OsmApi):
             logger.debug('not deleted')
             raise Exception(data.text)
 
-    def get_meta_gpx(self, gpx_id: int, auth) -> dict:
-        data = requests.get(self.base_url + '/gpx/{}/details'.format(str(gpx_id)), auth=auth)
+    def get_meta_gpx(self, tid: int, auth) -> dict:
+        """
+        returns meta data of identified gpx
+        Authentication required
+
+        :param tid: trace ID
+        :param auth: either OAuth1 object or tuple (username, password)
+        """
+        data = requests.get(self.base_url + '/gpx/{}/details'.format(tid), auth=auth)
         if data.ok:
             logger.debug(data.text)
             tree = ElemTree.fromstring(data.text)
@@ -569,8 +768,12 @@ class OsmApi(a_osm_api.OsmApi):
         raise Exception(data.text)
 
     def get_gpx(self, tid: int) -> str:
-        """
-        GET /api/0.6/gpx/#id/data
+        """identifying the gpx file
+        downloads public or own private gpx file
+        Authentication required todo
+
+        :param tid: trace ID
+        :returns: the full gpx file as a string
         """
         data = requests.get(self.base_url + '/gpx/{}/data'.format(tid))
         if data.ok:
@@ -579,7 +782,11 @@ class OsmApi(a_osm_api.OsmApi):
 
     def get_own_gpx(self, auth) -> list:
         """
-        GET /api/0.6/user/gpx_files
+        meta data of all own gpx files
+        Authorisation required
+
+        :param auth: either OAuth1 object or tuple (username, password)
+        :returns: list of dictionary representing the metadata
         """
         data = requests.get(self.base_url + '/user/gpx_files', auth=auth)
         if data.ok:
@@ -601,8 +808,9 @@ class OsmApi(a_osm_api.OsmApi):
 
     def get_user(self, uid: int) -> dict:
         """
-        GET /api/0.6/user/#id
-        :param uid: user id
+        user data and  statistic
+
+        :param uid: user ID
         :returns: dictionary with user detail
         """
         data = requests.get(self.base_url + '/user/' + str(uid))
@@ -612,7 +820,7 @@ class OsmApi(a_osm_api.OsmApi):
 
     def get_users(self, uids: list) -> list:
         """
-        GET /api/0.6/users?users=#id1,#id2,...,#idn
+        user data an statistics for multiple users
 
         :param uids: uid in a list
         :returns: list of dictionary with user detail
@@ -625,7 +833,10 @@ class OsmApi(a_osm_api.OsmApi):
 
     def get_current_user(self, auth) -> dict:
         """
-        GET /api/0.6/user/details
+        own user data and statistics
+        Authorisation required
+
+        :param auth: either OAuth1 object or tuple (username, password)
         :returns: dictionary with user detail
         """
         data = requests.get(self.base_url + '/user/details', auth=auth)
@@ -648,8 +859,10 @@ class OsmApi(a_osm_api.OsmApi):
 
     def get_own_preferences(self, auth) -> dict:
         """
-        GET /api/0.6/user/preferences
+        returns all own user preferences
+        Authorisation required
 
+        :param auth: either OAuth1 object or tuple (username, password)
         :returns: dictionary with preferences
         """
         data = requests.get(self.base_url + '/user/preferences', auth=auth)
@@ -659,6 +872,13 @@ class OsmApi(a_osm_api.OsmApi):
         raise Exception(data.text)
 
     def update_own_preferences(self, pref: dict, auth):
+        """
+        updates all user preferences at once
+        Authorisation required
+
+        :param auth: either OAuth1 object or tuple (username, password)
+        :param pref: dictionary with preferences
+        """
         root = ElemTree.Element("osm")
         prefs = ElemTree.SubElement(root, 'preferences')
         for key, value in pref.items():
@@ -671,18 +891,43 @@ class OsmApi(a_osm_api.OsmApi):
         raise Exception(ret.text)
 
     def get_own_preference(self, key: str, auth) -> str:
+        """
+        returns the value of a single preference
+        Authorisation required
+
+        GET /api/0.6/user/preferences/<your_key>
+
+        :param auth: either OAuth1 object or tuple (username, password)
+        :param key: key of preference
+        :returns: value
+        """
         data = requests.get(self.base_url + '/user/preferences/{}'.format(key), auth=auth)
         if data.ok:
             return data.text
         raise Exception(data.text)
 
     def set_own_preference(self, key: str, value: str, auth):
+        """
+        updates the value of a single preference
+        Authorisation required
+
+        :param key: key of preference
+        :param value: new value
+        :param auth: either OAuth1 object or tuple (username, password)
+        """
         data = requests.put(self.base_url + '/user/preferences/{}'.format(key), data=value, auth=auth)
         if data.ok:
             return None
         raise Exception(data.text)
 
     def delete_own_preference(self, key: str, auth):
+        """
+        deletes a single preference
+        Authorisation required
+
+        :param key: key of preference
+        :param auth: either OAuth1 object or tuple (username, password)
+        """
         data = requests.delete(self.base_url + '/user/preferences/{}'.format(key), auth=auth)
         if data.ok:
             return None
@@ -717,7 +962,13 @@ class OsmApi(a_osm_api.OsmApi):
 
     def get_notes_bbox(self, bbox: tuple, limit: int = 100, closed: int = 7) -> list:
         """
-        GET /api/0.6/notes?bbox=left,bottom,right,top
+        searches for all notes within the boundaries of bbox
+        todo use limit and closed
+        :param bbox: (lon_min, lat_min, lon_max, lat_max)
+        :param limit: 0-1000
+        :param closed: max days closed -1=all, 0=only_open
+        :returns: list of Notes
+        :raises ValueError: When any of the limits are crossed
         """
         data = requests.get(self.base_url + '/notes?bbox=' + ','.join(map(str, bbox)))
         logger.debug(data.text)
@@ -730,7 +981,11 @@ class OsmApi(a_osm_api.OsmApi):
 
     def get_note(self, nid: int) -> Note:
         """
-        GET /api/0.6/notes/#id
+        a note with all comments
+
+        :param nid: note id
+        :return: the identified Note
+        :raises NoneFoundError: note ID not found
         """
         data = requests.get(self.base_url + '/notes/{}'.format(str(nid)))
         logger.debug(data.text)
@@ -743,9 +998,16 @@ class OsmApi(a_osm_api.OsmApi):
 
     def create_note(self, text: str, lat: float, lon: float, auth) -> Note:
         """
-        POST /api/0.6/notes?lat=<lat>&lon=<lon>&text=<ANote>
+        creates anonymous or user made notes depending if auth is provided
+        Authorisation optional
+
+        :param text: Note Text
+        :param lat: latitude
+        :param lon: longitude
+        :param auth: either OAuth1 object or tuple (username, password)
+        :returns: note ID
+        :raises ValueError: No text field
         """
-        # authorisation optional
         data = requests.post(self.base_url + '/notes', params={'lat': lat, 'lon': lon, 'text': text}, auth=auth)
         logger.debug(data.text)
         if data.ok:
@@ -757,7 +1019,16 @@ class OsmApi(a_osm_api.OsmApi):
 
     def comment_note(self, nid: int, text: str, auth) -> Note:
         """
-        POST /api/0.6/notes/#id/comment?text=<ANoteComment>
+        adds a comment to the note
+        Authorisation required
+
+        :param nid: note ID
+        :param text: Text
+        :param auth: either OAuth1 object or tuple (username, password)
+        :returns: the Note itself
+        :raises ValueError: no Textfield
+        :raises NoneFoundError: note ID not found
+        :raises ConflictError: already closed Note
         """
         data = requests.post(self.base_url + '/notes/{}/comment'.format(str(nid)),
                              params={'text': text}, auth=auth)
@@ -775,7 +1046,15 @@ class OsmApi(a_osm_api.OsmApi):
 
     def close_note(self, nid: int, text: str, auth) -> Note:
         """
-        POST /api/0.6/notes/#id/close?text=<Comment>
+        closes a note, no comments can be added to a closed note
+        Authorisation required
+
+        :param nid: note ID
+        :param text: Closing comment
+        :param auth: either OAuth1 object or tuple (username, password)
+        :returns: the Note itself
+        :raises NoneFoundError: note ID not found
+        :raises ConflictError: already closed Note
         """
         data = requests.post(self.base_url + '/notes/{}/close'.format(str(nid)),
                              params={'text': text}, auth=auth)
@@ -793,7 +1072,16 @@ class OsmApi(a_osm_api.OsmApi):
 
     def reopen_note(self, nid: int, text: str, auth):
         """
-        POST /api/0.6/notes/#id/reopen?text=<ANoteComment>
+        reopens a note, open for more comments
+        Authorisation required
+
+        :param nid: Note ID
+        :param text: Text
+        :param auth: either OAuth1 object or tuple (username, password)
+        :returns: the Note itself
+        :raises NoneFoundError: note ID not found
+        :raises ConflictError: already closed Note
+        :raises LookupError: deleted Note
         """
         data = requests.post(self.base_url + '/notes/{}/close'.format(str(nid)),
                              params={'text': text}, auth=auth)
@@ -813,7 +1101,20 @@ class OsmApi(a_osm_api.OsmApi):
                     start: datetime = None, end: datetime = None,
                     sort: str = 'updated_at', order: str = 'newest') -> list:
         """
-        GET /api/0.6/notes/search?q=<SearchTerm>&limit=&closed=&username=&user=&from=&to=&sort=&order=
+        searches for notes complying all parameters
+        Authorisation required
+        todo test
+
+        :param text: <free text>
+        :param limit: 0-1000 max amount notes returned
+        :param closed: max days closed -1=all, 0=only_open
+        :param user: User ID or Username
+        :param start: from earliest date
+        :param end: to newer date default: today
+        :param sort: created_at or updated_at
+        :param order: oldest or newest
+        :returns: list of Notes
+        :raises ValueError: When any of the limits are crossed
         """
         params = {'q': text, 'limit': limit, 'closed': closed, 'sort': sort, 'order': order}
         if user:
@@ -835,10 +1136,10 @@ class OsmApi(a_osm_api.OsmApi):
 
     def rss_notes(self, bbox) -> str:
         """
-        GET /api/0.6/notes/feed?bbox=left,bottom,right,top
+        gets a notes RSS feed of the area
 
-        :param bbox: (lonmin, latmin, lonmax, latmax)
-        :return:
+        :param bbox: (lon_min, lat_min, lon_max, lat_max)
+        :return: xml RSS feed
         """
         params = {'bbox': ','.join(map(str, bbox))}
         data = requests.get(self.base_url + '/notes/feed', params=params)
