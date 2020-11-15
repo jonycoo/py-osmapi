@@ -587,7 +587,8 @@ class OsmApi:
 
     def get_relation_of_element(self, e_type: str, eid: int) -> list:
         """
-        returns all relations containing this Element
+        returns all relations containing this element
+
         :param e_type: type of element ('node'/'way'/'relation')
         :param eid: element id
         :returns: relations containing this element
@@ -609,6 +610,7 @@ class OsmApi:
         """
         use only on node elements
 
+        :param eid: element ID
         :returns: ways directly using this node
         :raises NoneFoundError: no connected ways found
         """
@@ -628,6 +630,7 @@ class OsmApi:
         """
         all elements within bbox
 
+        :param bbox: tuple (lon_min, lat_min, lon_max, lat_max)
         :returns: all Elements with minimum one Node within this BoundingBox
         :raise NoneFoundError: either none or over 50.000 elements are found
         """
@@ -647,7 +650,7 @@ class OsmApi:
         """
         returns all elements directly referenced or referenced by 2nd grade
 
-        :param e_type: type of element ('node'/'way'/'relation')refernced
+        :param e_type: type of element ('node'/'way'/'relation') referenced
         :param eid: element id
         :returns: elements referenced up to 2nd grade with element
         :raises NoneFoundError: eid not found / element deleted
@@ -668,22 +671,21 @@ class OsmApi:
 
     ################################################## GPX ########################################################
 
-    def get_gpx_bbox(self, bbox: tuple, page: int = 0) -> list:
+    def get_gpx_bbox(self, bbox: tuple, page: int = 0) -> str:
         """
-        returns 5000GPS trackpoints max, increase page for any additional 5000
-        todo bug fix
+        returns max 5000GPS trackpoints as gpx string, increase page for any additional 5000
 
         :param bbox: (min_lon, min_lat, max_lon, max_lat)
-        :param page: 5000 trackpoints are returned each page todo pages
-        :returns: max 5000 trackpoints within bbox, format GPX Version 1.0
+        :param page: 5000 trackpoints are returned each page
+        :returns: format GPX Version 1.0 string
         """
-        data = requests.get(self.base_url + '/trackpoints?bbox={}' + ','.join(map(str, bbox)))
+        data = requests.get(self.base_url + '/trackpoints', params={'bbox': ','.join(map(str, bbox)), 'page': page})
         if data.ok:
-            return self.__parse_gpx_info(data.text)
+            return data.text
         raise Exception(data.text)
 
     def upload_gpx(self, trace: str, name: str, description: str, tags: set, auth,
-                   public: bool = True, visibility: str = 'trackable') -> int:
+                   visibility: str = 'trackable') -> int:
         """
         uploads gpx trace
         Authorisation required
@@ -691,9 +693,8 @@ class OsmApi:
         :param trace: gpx trace file string
         :param description: gpx description
         :param name: file name on osm
-        :param tags: additional tags mappingtour, etc
+        :param tags: additional tags: eg.: mappingtour, etc
         :param auth: either OAuth1 object or tuple (username, password)
-        :param public: True for public tracks else False todo use public
         :param visibility: one of [private, public, trackable, identifiable]
             more https://wiki.openstreetmap.org/wiki/Visibility_of_GPS_traces
         :returns: gpx_id
@@ -752,6 +753,7 @@ class OsmApi:
 
         :param tid: trace ID
         :param auth: either OAuth1 object or tuple (username, password)
+        :returns: dict with metadata
         """
         data = requests.get(self.base_url + '/gpx/{}/details'.format(tid), auth=auth)
         if data.ok:
@@ -767,15 +769,16 @@ class OsmApi:
             return ret
         raise Exception(data.text)
 
-    def get_gpx(self, tid: int) -> str:
+    def get_gpx(self, tid: int, auth) -> str:
         """identifying the gpx file
         downloads public or own private gpx file
-        Authentication required todo
+        Authentication required
 
         :param tid: trace ID
+        :param auth: either OAuth1 object or tuple (username, password)
         :returns: the full gpx file as a string
         """
-        data = requests.get(self.base_url + '/gpx/{}/data'.format(tid))
+        data = requests.get(self.base_url + '/gpx/{}/data'.format(tid), auth=auth)
         if data.ok:
             return data.text
         raise Exception(data.text)
@@ -963,14 +966,15 @@ class OsmApi:
     def get_notes_bbox(self, bbox: tuple, limit: int = 100, closed: int = 7) -> list:
         """
         searches for all notes within the boundaries of bbox
-        todo use limit and closed
+
         :param bbox: (lon_min, lat_min, lon_max, lat_max)
         :param limit: 0-1000
         :param closed: max days closed -1=all, 0=only_open
         :returns: list of Notes
         :raises ValueError: When any of the limits are crossed
         """
-        data = requests.get(self.base_url + '/notes?bbox=' + ','.join(map(str, bbox)))
+        data = requests.get(self.base_url + '/notes', params={'bbox': ','.join(map(str, bbox)),
+                                                              'limit': limit, 'closed': closed})
         logger.debug(data.text)
         if data.ok:
             tree = ElemTree.fromstring(data.text)
@@ -1103,7 +1107,6 @@ class OsmApi:
         """
         searches for notes complying all parameters
         Authorisation required
-        todo test
 
         :param text: <free text>
         :param limit: 0-1000 max amount notes returned

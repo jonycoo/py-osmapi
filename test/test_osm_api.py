@@ -29,7 +29,7 @@ class MyTestCase(unittest.TestCase):
         print(data)
 
     def test_cs_cre(self):
-        data = self.osmo.create_changeset({'comment': 'test', 'created_by': 'osmate'}, self.auth())
+        data = self.osmo.open_changeset({'comment': 'test', 'created_by': 'osmate'}, self.auth())
         print(data)
 
     def test_cs_unsub(self):
@@ -108,12 +108,17 @@ class MyTestCase(unittest.TestCase):
 
     def test_get_gpx_bbox(self):
         # 46.7723/12.1855
-        print(osm.osm_util.create_bbox(46.7723, 12.1855, 750))
-        gpx = self.osmo.get_gpx_bbox(osm.osm_util.create_bbox(46.7723, 12.1855, 750), 0)
+        print(osm.osm_util.create_bbox(51.4564, -0.214097, 750))
+        gpx = self.osmo.get_gpx_bbox(osm.osm_util.create_bbox(51.4564, -0.214097, 750), 0)
+        print(gpx)
 
     def test_send_gpx(self):
         gpx = open('/home/marvin/Downloads/2020-05-31_15-23_Sun.gpx').read()
         tid = self.osmo.upload_gpx(gpx, 'test_trace.xml', 'test', {'test', 'osmate'}, self.auth())
+        print(tid)
+
+    def test_get_gpx(self):
+        tid = self.osmo.get_gpx(1714, self.auth())
         print(tid)
 
     def test_meta_gpx(self):
@@ -130,6 +135,10 @@ class MyTestCase(unittest.TestCase):
 
     def test_get_notes_bbox(self):
         notes = self.osmo.get_notes_bbox((13.428416654163087, 52.49863874116848, 13.446383345836914, 52.52816125883152))
+        print(notes[0])
+
+    def test_get_notes_bbox(self):
+        notes = self.osmo.search_note('abc')
         print(notes[0])
 
     def test_get_preferences(self):
