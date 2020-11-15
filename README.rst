@@ -15,12 +15,27 @@ My second requirement was to be able to use OAuth which I haven't found In any o
 
 Installation
 =============
-Sorry I haven't yet put the code in a package on PIP but I plan to do it.
-If someone knows how, I appreciate help.
-The only non-standard dependency is dateutil and rauth (for OAuth).
+the project is now on pip, so now it is just as easy as
+
+.. code-block:: bash
+
+    pip install py-osmapi
+
+after that import osm.osm_api
+
+.. code:: python
+
+    import osm.osm_api
+    import osm.osm_util
+    osm = osm.osm_api.OsmApi()
+    #currently only for accounts at the testserver (https://master.apis.dev.openstreetmap.org)
+    osm.get_current_user((<osm-username>, <osm-password>))
+
+I wrote some documentation to every public method.
+I've Implemented all methods from the API v0.6, excluding reduction
 
 Support
 ========
-Please create an Issue here for any Bugs and Feature requests.
+Please create an Issue in github for any Bugs and Feature requests.
 For direct contact to me please write a PM via OSM `here <https://www.openstreetmap.org/user/jonycoo>`_.
 If you want to support me, consider to `Donate <https://paypal.me/jonycoo>`_ any amount you like.
