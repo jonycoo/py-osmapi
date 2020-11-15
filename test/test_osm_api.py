@@ -72,7 +72,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_get_node(self):
         node = self.osmo.get_element('node', 4314858041)
-        print(node.__repr__())
+        print(node)
 
     def test_get_way(self):
         node = self.osmo.get_element('way', 201774)
@@ -137,7 +137,7 @@ class MyTestCase(unittest.TestCase):
         notes = self.osmo.get_notes_bbox((13.428416654163087, 52.49863874116848, 13.446383345836914, 52.52816125883152))
         print(notes[0])
 
-    def test_get_notes_bbox(self):
+    def test_get_notes_search(self):
         notes = self.osmo.search_note('abc')
         print(notes[0])
 

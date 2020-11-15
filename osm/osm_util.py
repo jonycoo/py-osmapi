@@ -8,11 +8,6 @@ OSM_URL = 'https://master.apis.dev.openstreetmap.org'
 class Element:
     def __init__(self, eid: int, version: int, changeset: int,
                  user: str, uid: int, created: datetime, visible: bool, tags: dict):
-        """
-
-        :param eid:
-        :param tags:
-        """
         self._id = eid
         self.tags = tags or {}
         self.version = version
@@ -27,7 +22,14 @@ class Element:
         return json.dumps(self.__dict__, default=lambda o: _default(o))
 
     def __str__(self):
-        return str(self.id)
+
+        str_tags = ''
+        for attr, val in self.tags.items():
+            str_tags += f"\n\t{attr} -- {val}"
+
+        return f"type:{self.type}\nid:{self.id}\ntags:{str_tags}\nversion: {self.version}\n" \
+               f"created: {self.created}\nvisible: {self.visible}" \
+               f"\nchangeset:\n\tchangeset_id: {self.changeset}\n\tuser: {self.user}\n\tuser_id: {self.uid}\n"
 
     @property
     def id(self):
@@ -46,6 +48,9 @@ class Node(Element):
         self.lon = lon
         self.e_type = 'node'
 
+    def __str__(self):
+        return super(Node, self).__str__() + f"location:\n\tlatitude: {self.lat}\n\tlongitude: {self.lon}"
+
 
 class Way(Element):
     def __init__(self, eid: int, nodes: list, version: int, changeset: int,
@@ -54,6 +59,9 @@ class Way(Element):
         self.nodes = nodes
         self.e_type = 'way'
 
+    def __str__(self):
+        return super(Way, self).__str__() + f"nodes: \n\t{self.nodes}"
+
 
 class Relation(Element):
     def __init__(self, eid: int, members: list, version: int, changeset: int,
@@ -61,6 +69,9 @@ class Relation(Element):
         super().__init__(eid, version, changeset, user, uid, created, visible, tags)
         self.members = members
         self.e_type = 'relation'
+
+    def __str__(self):
+        return super(Relation, self).__str__() + f"nodes: \n\t{self.members}"
 
 
 class Comment:
@@ -73,6 +84,10 @@ class Comment:
 
     def __repr__(self):
         return json.dumps(self.__dict__)
+
+    def __str__(self):
+        return f"\n\tid: {self.id}\n\tusername: {self.user}\n\t" \
+               f"text: \"{self.text}\"\n\taction: {self.action}\n\tcreated: {self.created}"
 
     @property
     def id(self):
@@ -93,6 +108,13 @@ class Note:
     def __repr__(self):
         return json.dumps(self.__dict__, default=lambda o: _default(o))
 
+    def __str__(self):
+        com_str = ''
+        for com in self.comments:
+            com_str += f'{com}'
+        return f"id: {self.id}\nlocation:\n\tlatitude: {self.lat}\n\tlongitude: {self.lon}\nopen: {self.open}\n" \
+               f"created: {self.created}{f'closed: {self.closed}' if not self.open else ''}\ncomments:{com_str}"
+
     @property
     def id(self):
         return self._id
@@ -105,7 +127,7 @@ class Note:
 class Trace:
     def __init__(self, tid: int, gpx: str, filename: str, username: str, created: datetime,
                  desc: str = None, tags: set = None, visibility: str = 'trackable'):
-        self._tid = tid
+        self._id = tid
         self.gpx = gpx
         self.name = filename
         self.username = username
@@ -118,11 +140,12 @@ class Trace:
         return json.dumps(self.__dict__)
 
     def __str__(self):
-        return self.name
+        return f"id: {self.id}\nfilename: {self.name}\nDescription: {self.desc}\ntags: {self.tags}\n" \
+               f"date: {self.created}\nvisible: {self.visibility}\nuploader: {self.username}"
 
     @property
     def id(self):
-        return self._tid
+        return self._id
 
     @staticmethod
     def url(osm_user, tid):
@@ -150,6 +173,17 @@ class ChangeSet:
 
     def __repr__(self):
         return json.dumps(self.__dict__, default=lambda o: _default(o))
+
+    def __str__(self):
+        com_str = ''
+        for com in self.comments:
+            com_str += f'{com}'
+        tag_str = ''
+        for tag, val in self.tags.items():
+            tag_str += f'\n\t{tag}: {val}'
+        return f"id: {self.id}\ncreator: {self.user}\ncreator_id: {self.uid}\ncreator_date: {self.created}\n" \
+               f"open: {self.open}\nbbox: {(self.min_lat, self.min_lon, self.max_lat, self.max_lon)}\n" \
+               f"closed: {self.closed}\ntags: {tag_str}\ncomments: {com_str}"
 
     @property
     def id(self):
