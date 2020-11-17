@@ -1,7 +1,9 @@
-This Project is currently in Alpha all requests are directed to https://master.apis.dev.openstreetmap.org
+This Project is currently in Alpha
+
+all requests are directed to https://master.apis.dev.openstreetmap.org
 
 
-PY-OSMAPI
+PYOSMAPI
 =========
 A OSM-Edit API Interface written in Python
 
@@ -19,17 +21,17 @@ the project is now on pip, so now it is just as easy as
 
 .. code-block:: bash
 
-    pip install py-osmapi
+    pip install pyosmapi
 
 after that import osm.osm_api
 
 .. code:: python
 
-    import osm.osm_api
-    import osm.osm_util
-    osm = osm.osm_api.OsmApi()
-    #currently only for accounts at the testserver (https://master.apis.dev.openstreetmap.org)
-    osm.get_current_user((<osm-username>, <osm-password>))
+    import pyosmapi.osm_api
+    api = pyosmapi.osm_api.OsmApi()
+    #init with '' or Fales access testserver (https://master.apis.dev.openstreetmap.org)
+    #by initializing OsmApi(True) you can access the live server
+    api.get_current_user((<osm-username>, <osm-password>))
 
 I wrote some documentation to every public method.
 I've Implemented all methods from the API v0.6, excluding reduction

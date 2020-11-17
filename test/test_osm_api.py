@@ -1,8 +1,8 @@
 import unittest
 import os
-from osm import exceptions
-import osm.osm_api as osmapi
-import osm.osm_util
+from pyosmapi import exceptions
+import pyosmapi.osm_api as osmapi
+import pyosmapi.osm_util
 
 
 class MyTestCase(unittest.TestCase):
@@ -93,7 +93,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_get_elem_bbox_pos(self):
         # westlimit=9.3852744541; southlimit=49.1700528219; eastlimit=9.38678722; northlimit=49.1708595043
-        print(osm.osm_util.create_bbox(52.5134, 13.4374, 1000))
+        print(pyosmapi.osm_util.create_bbox(52.5134, 13.4374, 1000))
         elems = self.osmo.get_element_bbox((13.428416654163087, 52.49863874116848, 13.446383345836914, 52.52816125883152))
         for item in elems:
             print(item.__repr__)
@@ -101,15 +101,15 @@ class MyTestCase(unittest.TestCase):
     def test_get_elem_bbox_neg(self):
         with self.assertRaises(exceptions.NoneFoundError):
             # westlimit=9.3852744541; southlimit=49.1700528219; eastlimit=9.38678722; northlimit=49.1708595043
-            print(osm.osm_util.create_bbox(52.5134, 13.4374, 1000))
+            print(pyosmapi.osm_util.create_bbox(52.5134, 13.4374, 1000))
             elems = self.osmo.get_element_bbox((9.3849565809, 49.1700030402, 9.3867590254, 49.1707360702))
             for item in elems:
                 print(item.__repr__)
 
     def test_get_gpx_bbox(self):
         # 46.7723/12.1855
-        print(osm.osm_util.create_bbox(51.4564, -0.214097, 750))
-        gpx = self.osmo.get_gpx_bbox(osm.osm_util.create_bbox(51.4564, -0.214097, 750), 0)
+        print(pyosmapi.osm_util.create_bbox(51.4564, -0.214097, 750))
+        gpx = self.osmo.get_gpx_bbox(pyosmapi.osm_util.create_bbox(51.4564, -0.214097, 750), 0)
         print(gpx)
 
     def test_send_gpx(self):

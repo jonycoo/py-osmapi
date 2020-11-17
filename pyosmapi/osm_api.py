@@ -2,8 +2,8 @@ import requests
 from http import HTTPStatus
 import logging
 import xml.etree.ElementTree as ElemTree
-from osm.osm_util import *
-from osm.exceptions import *
+from pyosmapi.osm_util import *
+from pyosmapi.exceptions import *
 
 logger = logging.getLogger(__name__)
 
@@ -11,11 +11,15 @@ logger = logging.getLogger(__name__)
 class OsmApi:
     base_url = 'https://master.apis.dev.openstreetmap.org/api/0.6'
 
+    def __init__(self, live: bool = False):
+        if live:
+            self.base_url = 'https://api.openstreetmap.org/api/0.6'
+
     def get_api_versions(self):
         """
         :returns: supported API versions
         """
-        data = requests.get('https://master.apis.dev.openstreetmap.org/api' + '/versions')
+        data = requests.get('https://api.openstreetmap.org/api' + '/versions')
         if data.ok:
             return ElemTree.fromstring(data.text).find('api/version').text
         raise Exception(data.text)
@@ -67,7 +71,7 @@ class OsmApi:
         :param auth: either OAuth1 object or tuple (username, password)
         :returns: changeset ID
         """
-        root = ElemTree.Element('osm')
+        root = ElemTree.Element('pyosmapi')
         cs = ElemTree.SubElement(root, 'changeset')
         try:
             self.__kv_serial(tags, cs)
@@ -114,7 +118,7 @@ class OsmApi:
         :raises NoneFoundError: no changeset of that ID
         :raises ConflictError: other user than creator trying to use changeset / or changeset already closed.
         """
-        root = ElemTree.Element('osm')
+        root = ElemTree.Element('pyosmapi')
         cs = ElemTree.SubElement(root, 'changeset')
         self.__kv_serial(changeset.tags, cs)
         xml = ElemTree.tostring(root)
@@ -419,7 +423,7 @@ class OsmApi:
         return elem
 
     def __serial_elem(self, elem: Element, is_create: bool = False) -> str:
-        root = ElemTree.Element("osm")
+        root = ElemTree.Element("pyosmapi")
         doc = ElemTree.Element('None')
         if not is_create:
             params = {'id': elem.id, 'version': str(elem.version), 'changeset': str(elem.changeset),
@@ -692,7 +696,7 @@ class OsmApi:
 
         :param trace: gpx trace file string
         :param description: gpx description
-        :param name: file name on osm
+        :param name: file name on pyosmapi
         :param tags: additional tags: eg.: mappingtour, etc
         :param auth: either OAuth1 object or tuple (username, password)
         :param visibility: one of [private, public, trackable, identifiable]
@@ -882,7 +886,7 @@ class OsmApi:
         :param auth: either OAuth1 object or tuple (username, password)
         :param pref: dictionary with preferences
         """
-        root = ElemTree.Element("osm")
+        root = ElemTree.Element("pyosmapi")
         prefs = ElemTree.SubElement(root, 'preferences')
         for key, value in pref.items():
             ElemTree.SubElement(prefs, 'preference', {'k': key, 'v': value})
