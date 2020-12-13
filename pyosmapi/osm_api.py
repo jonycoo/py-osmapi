@@ -22,7 +22,7 @@ class OsmApi:
         data = requests.get('https://api.openstreetmap.org/api' + '/versions')
         if data.ok:
             return ElemTree.fromstring(data.text).find('api/version').text
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def get_api_capabilities(self) -> dict:
         """
@@ -34,15 +34,15 @@ class OsmApi:
         data = requests.get(self.base_url + '/capabilities')
         if data.ok:
             tree = ElemTree.fromstring(data.text)
-            capabiliy = {}
+            capability = {}
             for item in tree.find('api').iter():
-                capabiliy[item.tag] = item.attrib
+                capability[item.tag] = item.attrib
             blacklist = []
             for item in tree.findall('policy/imagery/blacklist'):
                 blacklist.append(item.get('regex'))
-            capabiliy['image_blacklist'] = blacklist
-            return capabiliy
-        raise Exception(data.text)
+            capability['image_blacklist'] = blacklist
+            return capability
+        self.__more_error(data)
 
     def get_permissions(self, auth) -> set:
         """
@@ -58,7 +58,7 @@ class OsmApi:
             for item in tree.findall('permissions/permission'):
                 permissions.add(item.get('name'))
             return permissions if len(permissions) else None
-        raise Exception(data.text)
+        self.__more_error(data)
 
     ############################################### CHANGESET #######################################################
 
@@ -71,7 +71,7 @@ class OsmApi:
         :param auth: either OAuth1 object or tuple (username, password)
         :returns: changeset ID
         """
-        root = ElemTree.Element('pyosmapi')
+        root = ElemTree.Element('osm')
         cs = ElemTree.SubElement(root, 'changeset')
         try:
             self.__kv_serial(tags, cs)
@@ -85,7 +85,7 @@ class OsmApi:
             return int(data.text)
         elif data.status_code == HTTPStatus.BAD_REQUEST:
             raise ParseError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def get_changeset(self, cid: int, discussion: bool = False) -> ChangeSet:
         """
@@ -105,9 +105,7 @@ class OsmApi:
             logger.debug(data.text)
             tree = ElemTree.fromstring(data.text).find('changeset')
             return self.__changeset_parser(tree)
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def edit_changeset(self, changeset: ChangeSet, auth):
         """
@@ -118,7 +116,7 @@ class OsmApi:
         :raises NoneFoundError: no changeset of that ID
         :raises ConflictError: other user than creator trying to use changeset / or changeset already closed.
         """
-        root = ElemTree.Element('pyosmapi')
+        root = ElemTree.Element('osm')
         cs = ElemTree.SubElement(root, 'changeset')
         self.__kv_serial(changeset.tags, cs)
         xml = ElemTree.tostring(root)
@@ -126,11 +124,9 @@ class OsmApi:
         data = requests.put(self.base_url + '/changeset/{}'.format(changeset.id), data=xml, auth=auth)
         if data.ok:
             return None
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
         elif data.status_code == HTTPStatus.CONFLICT:
             raise ConflictError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def close_changeset(self, cid: int, auth):
         """
@@ -145,11 +141,9 @@ class OsmApi:
         data = requests.get(self.base_url + '/changeset/{}/close'.format(cid), auth=auth)
         if data.ok:
             return None
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
         elif data.status_code == HTTPStatus.CONFLICT:
             raise ConflictError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def download_changeset(self, cid: int) -> str:
         """
@@ -161,9 +155,7 @@ class OsmApi:
         data = requests.get(self.base_url + '/changeset/{}/download'.format(cid))
         if data.ok:
             return data.text
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def get_changesets(self, bbox: tuple = None, user: str = '', time: datetime = None,
                        is_open: bool = False, is_closed: bool = False, changesets: list = None) -> list:
@@ -210,7 +202,7 @@ class OsmApi:
             raise ValueError(data.text)
         elif data.status_code == HTTPStatus.NOT_FOUND:
             raise ValueError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def diff_upload(self, cid: int, xml: str, auth) -> list:
         """
@@ -249,11 +241,9 @@ class OsmApi:
             return changes
         elif data.status_code == HTTPStatus.BAD_REQUEST:
             raise ParseError(data.text)
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
         elif data.status_code == HTTPStatus.CONFLICT:
             raise ConflictError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def __changeset_parser(self, tree: ElemTree):
         tags = self.__kv_parser(tree.findall('tag'))
@@ -300,6 +290,7 @@ class OsmApi:
             raise ValueError(data.text)
         elif data.status_code == HTTPStatus.CONFLICT:
             raise ConflictError(data.text)
+        self.__more_error(data)
 
     def sub_changeset(self, cid: int, auth) -> ChangeSet:
         """
@@ -317,7 +308,7 @@ class OsmApi:
             return self.__changeset_parser(tree)
         elif data.status_code == HTTPStatus.CONFLICT:
             raise ConflictError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def unsub_changeset(self, cid: int, auth) -> ChangeSet:
         """
@@ -332,9 +323,7 @@ class OsmApi:
         if data.ok:
             tree = ElemTree.fromstring(data.text).find('changeset')
             return self.__changeset_parser(tree)
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     ############################################## ELEMENT #########################################################
 
@@ -367,6 +356,7 @@ class OsmApi:
             raise ConflictError(data.text)
         elif data.status_code == HTTPStatus.PRECONDITION_FAILED:
             raise ParseError(data.text)
+        self.__more_error(data)
 
     def get_element(self, e_type: str, eid: int) -> Element:
         """
@@ -383,11 +373,9 @@ class OsmApi:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
             return self.__parse_elem(tree[0])
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
         elif data.status_code == HTTPStatus.GONE:
             raise LookupError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def __parse_elem(self, elem: ElemTree.Element):
         eid = elem.get('id')
@@ -423,7 +411,7 @@ class OsmApi:
         return elem
 
     def __serial_elem(self, elem: Element, is_create: bool = False) -> str:
-        root = ElemTree.Element("pyosmapi")
+        root = ElemTree.Element('osm')
         doc = ElemTree.Element('None')
         if not is_create:
             params = {'id': elem.id, 'version': str(elem.version), 'changeset': str(elem.changeset),
@@ -449,7 +437,7 @@ class OsmApi:
 
     def edit_element(self, elem: Element, cid: int, auth) -> int:
         """
-        chage tags/position of element
+        change tags/position of element
         Authorisation required
 
         :param elem: changed element to get uploaded (Node/Way/Relation)
@@ -474,13 +462,11 @@ class OsmApi:
             return int(data.text)
         elif data.status_code == HTTPStatus.BAD_REQUEST:
             raise ValueError(data.text)
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
         elif data.status_code == HTTPStatus.CONFLICT:
             raise ConflictError(data.text)
         elif data.status_code == HTTPStatus.PRECONDITION_FAILED:
             raise ParseError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def delete_element(self, elem: Element, cid: int, auth) -> int:
         """
@@ -513,15 +499,13 @@ class OsmApi:
             return int(data.text)
         elif data.status_code == HTTPStatus.BAD_REQUEST:
             raise ValueError(data.text)
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
         elif data.status_code == HTTPStatus.CONFLICT:
             raise ConflictError(data.text)
         elif data.status_code == HTTPStatus.GONE:
             raise LookupError(data.text)
         elif data.status_code == HTTPStatus.PRECONDITION_FAILED:
             raise ParseError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def history_element(self, e_type: str, eid: int) -> list:
         """
@@ -539,9 +523,7 @@ class OsmApi:
             for sub in tree:
                 elems.append(self.__parse_elem(sub))
             return elems
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def history_version_element(self, e_type: str, eid: int, version: int = 1) -> Element:
         """
@@ -557,9 +539,7 @@ class OsmApi:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
             return self.__parse_elem(tree[0])
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def get_elements(self, e_type: str, lst_eid: list) -> list:
         """
@@ -583,11 +563,9 @@ class OsmApi:
 
         elif data.status_code == HTTPStatus.BAD_REQUEST:
             raise ParseError(data.text)
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
         elif data.status_code == HTTPStatus.REQUEST_URI_TOO_LONG:
             raise MethodError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def get_relation_of_element(self, e_type: str, eid: int) -> list:
         """
@@ -608,7 +586,7 @@ class OsmApi:
             if not elems:
                 raise NoneFoundError('no such element or no relations on this element')
             return elems
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def get_ways_of_node(self, eid: int) -> list:
         """
@@ -628,7 +606,7 @@ class OsmApi:
             if not elems:
                 raise NoneFoundError('no such node or no ways on this element')
             return elems
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def get_element_bbox(self, bbox: tuple) -> list:
         """
@@ -648,7 +626,7 @@ class OsmApi:
             if not len(tree) > 1:
                 raise NoneFoundError('no elements or over 50.000 elements')
             return elems
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def get_full_element(self, e_type: str, eid: int) -> list:
         """
@@ -667,11 +645,9 @@ class OsmApi:
             for sub in tree:
                 elems.append(self.__parse_elem(sub))
             return elems
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
         elif data.status_code == HTTPStatus.GONE:
             raise NoneFoundError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     ################################################## GPX ########################################################
 
@@ -686,7 +662,7 @@ class OsmApi:
         data = requests.get(self.base_url + '/trackpoints', params={'bbox': ','.join(map(str, bbox)), 'page': page})
         if data.ok:
             return data.text
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def upload_gpx(self, trace: str, name: str, description: str, tags: set, auth,
                    visibility: str = 'trackable') -> int:
@@ -696,7 +672,7 @@ class OsmApi:
 
         :param trace: gpx trace file string
         :param description: gpx description
-        :param name: file name on pyosmapi
+        :param name: file name on osm
         :param tags: additional tags: eg.: mappingtour, etc
         :param auth: either OAuth1 object or tuple (username, password)
         :param visibility: one of [private, public, trackable, identifiable]
@@ -708,7 +684,7 @@ class OsmApi:
         data = requests.post(self.base_url + '/gpx/create', auth=auth, files=req_file, data=content)
         if data.ok:
             return int(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def update_gpx(self, tid: int, trace: str, description: str, tags: list, auth,
                    public: bool = True, visibility: str = 'trackable'):
@@ -732,7 +708,7 @@ class OsmApi:
             logger.debug('updated')
         else:
             logger.debug('not updated')
-            raise Exception(data.text)
+            self.__more_error(data)
 
     def delete_gpx(self, tid: int, auth):
         """
@@ -748,7 +724,7 @@ class OsmApi:
             return None
         else:
             logger.debug('not deleted')
-            raise Exception(data.text)
+            self.__more_error(data)
 
     def get_meta_gpx(self, tid: int, auth) -> dict:
         """
@@ -771,7 +747,7 @@ class OsmApi:
                 tags.append(tag.text)
             ret['tags'] = tags
             return ret
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def get_gpx(self, tid: int, auth) -> str:
         """identifying the gpx file
@@ -785,7 +761,7 @@ class OsmApi:
         data = requests.get(self.base_url + '/gpx/{}/data'.format(tid), auth=auth)
         if data.ok:
             return data.text
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def get_own_gpx(self, auth) -> list:
         """
@@ -798,7 +774,7 @@ class OsmApi:
         data = requests.get(self.base_url + '/user/gpx_files', auth=auth)
         if data.ok:
             return self.__parse_gpx_info(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def __parse_gpx_info(self, xml):
         tree = ElemTree.fromstring(xml)
@@ -823,7 +799,7 @@ class OsmApi:
         data = requests.get(self.base_url + '/user/' + str(uid))
         if data.ok:
             return self.__parse_user(data.text)[0]
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def get_users(self, uids: list) -> list:
         """
@@ -836,7 +812,7 @@ class OsmApi:
         if data.ok:
             logger.debug(data.text)
             return self.__parse_user(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def get_current_user(self, auth) -> dict:
         """
@@ -849,7 +825,7 @@ class OsmApi:
         data = requests.get(self.base_url + '/user/details', auth=auth)
         if data.ok:
             return self.__parse_user(data.text)[0]
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def __parse_user(self, xml: str) -> list:
         tree = ElemTree.fromstring(xml)
@@ -876,7 +852,7 @@ class OsmApi:
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             return self.__kv_parser(tree.findall('preferences/preference'))
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def update_own_preferences(self, pref: dict, auth):
         """
@@ -886,7 +862,7 @@ class OsmApi:
         :param auth: either OAuth1 object or tuple (username, password)
         :param pref: dictionary with preferences
         """
-        root = ElemTree.Element("pyosmapi")
+        root = ElemTree.Element('osm')
         prefs = ElemTree.SubElement(root, 'preferences')
         for key, value in pref.items():
             ElemTree.SubElement(prefs, 'preference', {'k': key, 'v': value})
@@ -895,7 +871,7 @@ class OsmApi:
         ret = requests.put(self.base_url + '/user/preferences', data=data, auth=auth)
         if ret.ok:
             return None
-        raise Exception(ret.text)
+        self.__more_error(ret)
 
     def get_own_preference(self, key: str, auth) -> str:
         """
@@ -911,7 +887,7 @@ class OsmApi:
         data = requests.get(self.base_url + '/user/preferences/{}'.format(key), auth=auth)
         if data.ok:
             return data.text
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def set_own_preference(self, key: str, value: str, auth):
         """
@@ -925,7 +901,7 @@ class OsmApi:
         data = requests.put(self.base_url + '/user/preferences/{}'.format(key), data=value, auth=auth)
         if data.ok:
             return None
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def delete_own_preference(self, key: str, auth):
         """
@@ -938,7 +914,7 @@ class OsmApi:
         data = requests.delete(self.base_url + '/user/preferences/{}'.format(key), auth=auth)
         if data.ok:
             return None
-        raise Exception(data.text)
+        self.__more_error(data)
 
     ################################################# NOTE ######################################################
 
@@ -985,7 +961,7 @@ class OsmApi:
             return self.__parse_notes(tree)
         elif data.status_code == HTTPStatus.BAD_REQUEST:
             raise ValueError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def get_note(self, nid: int) -> Note:
         """
@@ -1002,7 +978,7 @@ class OsmApi:
             return self.__parse_notes(tree)[0]
         elif data.status_code == HTTPStatus.BAD_REQUEST:
             raise ValueError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def create_note(self, text: str, lat: float, lon: float, auth) -> Note:
         """
@@ -1023,7 +999,7 @@ class OsmApi:
             return self.__parse_notes(tree)[0]
         elif data.status_code == HTTPStatus.BAD_REQUEST:
             raise ValueError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def comment_note(self, nid: int, text: str, auth) -> Note:
         """
@@ -1046,11 +1022,9 @@ class OsmApi:
             return self.__parse_notes(tree)[0]
         elif data.status_code == HTTPStatus.BAD_REQUEST:
             raise ValueError(data.text)
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
         elif data.status_code == HTTPStatus.CONFLICT:
             raise ConflictError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def close_note(self, nid: int, text: str, auth) -> Note:
         """
@@ -1072,11 +1046,9 @@ class OsmApi:
             return self.__parse_notes(tree)[0]
         elif data.status_code == HTTPStatus.BAD_REQUEST:
             raise ValueError(data.text)
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
         elif data.status_code == HTTPStatus.CONFLICT:
             raise ConflictError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def reopen_note(self, nid: int, text: str, auth):
         """
@@ -1097,13 +1069,11 @@ class OsmApi:
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             return self.__parse_notes(tree)[0]
-        elif data.status_code == HTTPStatus.NOT_FOUND:
-            raise NoneFoundError(data.text)
         elif data.status_code == HTTPStatus.CONFLICT:
             raise ConflictError(data.text)
         elif data.status_code == HTTPStatus.GONE:
             raise LookupError(data.text)
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def search_note(self, text: str, limit: int = 100, closed: int = 7, user: str = None,
                     start: datetime = None, end: datetime = None,
@@ -1140,6 +1110,7 @@ class OsmApi:
             return self.__parse_notes(tree)
         elif data.status_code == HTTPStatus.BAD_REQUEST:
             raise ValueError(data.text)
+        self.__more_error(data)
 
     def rss_notes(self, bbox) -> str:
         """
@@ -1152,7 +1123,7 @@ class OsmApi:
         data = requests.get(self.base_url + '/notes/feed', params=params)
         if data.ok:
             return data.text
-        raise Exception(data.text)
+        self.__more_error(data)
 
     def __kv_parser(self, lst: list) -> dict:
         """
@@ -1167,3 +1138,10 @@ class OsmApi:
     def __kv_serial(self, tags: dict, parent: ElemTree.Element):
         for key, value in tags.items():
             ElemTree.SubElement(parent, 'tag', {'k': key, 'v': value})
+
+    def __more_error(self, data):
+        if data.status_code == HTTPStatus.NOT_FOUND:
+            raise NoneFoundError(data.text)
+        elif data.status_code == HTTPStatus.UNAUTHORIZED:
+            raise NotAuthorizedError(data.text)
+        raise requests.HTTPError

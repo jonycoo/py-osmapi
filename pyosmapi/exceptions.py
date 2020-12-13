@@ -19,3 +19,8 @@ class MethodError(LookupError):
 class NoneFoundError(ValueError):
     def __init__(self, message):
         self.message = message
+
+
+class NotAuthorizedError(Exception):
+    def __init__(self, message):
+        self.message = message
