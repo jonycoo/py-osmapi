@@ -9,11 +9,13 @@ logger = logging.getLogger(__name__)
 
 
 class OsmApi:
-    base_url = 'https://master.apis.dev.openstreetmap.org/api/0.6'
-
-    def __init__(self, live: bool = False):
-        if live:
-            self.base_url = 'https://api.openstreetmap.org/api/0.6'
+    def __init__(self, instance: str = "dev"):
+        if instance == "main":
+            self.base_url = DEFAULT_OSM_URL
+        elif instance == "dev":
+            self.base_url = DEFAULT_OSM_DEV_URL
+        else:
+            self.base_url = instance
 
     def get_api_versions(self):
         """
