@@ -21,7 +21,7 @@ class OsmApi:
         """
         :returns: supported API versions
         """
-        data = requests.get('https://api.openstreetmap.org/api' + '/versions')
+        data = requests.get(self.base_url + '/versions')
         if data.ok:
             return ElemTree.fromstring(data.text).find('api/version').text
         self.__more_error(data)
