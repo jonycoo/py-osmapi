@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 
 class OsmApi:
     def __init__(self, instance: str = "dev"):
-        if instance == "main":
+        if instance.lower() == "main":
             self.base_url = DEFAULT_OSM_URL
-        elif instance == "dev":
+        elif instance.lower() == "dev":
             self.base_url = DEFAULT_OSM_DEV_URL
         else:
             self.base_url = instance
