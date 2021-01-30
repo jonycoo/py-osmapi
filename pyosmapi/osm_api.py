@@ -9,6 +9,13 @@ logger = logging.getLogger(__name__)
 
 
 class OsmApi:
+    """
+    Connects to the OSM API to get or change data.
+
+    for param instance use either
+    `dev <https://master.apis.dev.openstreetmap.org>`_ or `main <https://api.openstreetmap.org>`_  API
+
+    """
     def __init__(self, instance: str = "dev"):
         self.url_extension = '/api/0.6'
         if instance.lower() == "main":
@@ -127,7 +134,8 @@ class OsmApi:
         self.__kv_serial(changeset.tags, cs)
         xml = ElemTree.tostring(root)
 
-        data = requests.put(self.base_url + self.url_extension + '/changeset/{}'.format(changeset.id), data=xml, auth=auth)
+        data = requests.put(self.base_url + self.url_extension + '/changeset/{}'.format(changeset.id),
+                            data=xml, auth=auth)
         if data.ok:
             return None
         elif data.status_code == HTTPStatus.CONFLICT:
@@ -233,7 +241,8 @@ class OsmApi:
         :param auth: either OAuth1 object or tuple (username, password)
         :returns: list with dict {type, old_id, new_id, new_version}
         """
-        data = requests.post(self.base_url + self.url_extension + '/changeset/{}/upload'.format(cid), data=xml, auth=auth)
+        data = requests.post(self.base_url + self.url_extension + '/changeset/{}/upload'.format(cid),
+                             data=xml, auth=auth)
         if data.ok:
             changes = []
             tree = ElemTree.fromstring(data.text)
@@ -558,7 +567,8 @@ class OsmApi:
         :raises NoneFoundError: requested object never existed
         :raises MethodError: you might never try ro request more than ~700 elements at once
         """
-        data = requests.get(self.base_url + self.url_extension + '/{}s?{}s={}'.format(e_type, e_type, ','.join(map(str, lst_eid))))
+        data = requests.get(self.base_url + self.url_extension + '/{}s?{}s={}'.format(e_type, e_type,
+                                                                                      ','.join(map(str, lst_eid))))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -665,7 +675,8 @@ class OsmApi:
         :param page: 5000 trackpoints are returned each page
         :returns: format GPX Version 1.0 string
         """
-        data = requests.get(self.base_url + self.url_extension + '/trackpoints', params={'bbox': ','.join(map(str, bbox)), 'page': page})
+        data = requests.get(self.base_url + self.url_extension + '/trackpoints',
+                            params={'bbox': ','.join(map(str, bbox)), 'page': page})
         if data.ok:
             return data.text
         self.__more_error(data)
@@ -687,7 +698,8 @@ class OsmApi:
         """
         content = {'description': description, 'tags': ','.join(tags), 'visibility': visibility}
         req_file = {'file': (name, trace)}
-        data = requests.post(self.base_url + self.url_extension + '/gpx/create', auth=auth, files=req_file, data=content)
+        data = requests.post(self.base_url + self.url_extension + '/gpx/create',
+                             auth=auth, files=req_file, data=content)
         if data.ok:
             return int(data.text)
         self.__more_error(data)
@@ -709,7 +721,8 @@ class OsmApi:
         """
         content = {'description': description, 'tags': ','.join(tags), 'public': public, 'visibility': visibility}
         req_file = {'file': ('test-trace.gpx', trace)}
-        data = requests.put(self.base_url + self.url_extension + '/gpx/' + str(tid), auth=auth, files=req_file, data=content)
+        data = requests.put(self.base_url + self.url_extension + '/gpx/' + str(tid),
+                            auth=auth, files=req_file, data=content)
         if data.ok:
             logger.debug('updated')
         else:
@@ -904,7 +917,8 @@ class OsmApi:
         :param value: new value
         :param auth: either OAuth1 object or tuple (username, password)
         """
-        data = requests.put(self.base_url + self.url_extension + '/user/preferences/{}'.format(key), data=value, auth=auth)
+        data = requests.put(self.base_url + self.url_extension + '/user/preferences/{}'.format(key),
+                            data=value, auth=auth)
         if data.ok:
             return None
         self.__more_error(data)
@@ -959,8 +973,8 @@ class OsmApi:
         :returns: list of Notes
         :raises ValueError: When any of the limits are crossed
         """
-        data = requests.get(self.base_url + self.url_extension + '/notes', params={'bbox': ','.join(map(str, bbox)),
-                                                              'limit': limit, 'closed': closed})
+        data = requests.get(self.base_url + self.url_extension + '/notes',
+                            params={'bbox': ','.join(map(str, bbox)), 'limit': limit, 'closed': closed})
         logger.debug(data.text)
         if data.ok:
             tree = ElemTree.fromstring(data.text)
@@ -998,7 +1012,8 @@ class OsmApi:
         :returns: note ID
         :raises ValueError: No text field
         """
-        data = requests.post(self.base_url + self.url_extension + '/notes', params={'lat': lat, 'lon': lon, 'text': text}, auth=auth)
+        data = requests.post(self.base_url + self.url_extension + '/notes',
+                             params={'lat': lat, 'lon': lon, 'text': text}, auth=auth)
         logger.debug(data.text)
         if data.ok:
             tree = ElemTree.fromstring(data.text)
