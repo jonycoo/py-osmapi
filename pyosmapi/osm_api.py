@@ -10,18 +10,22 @@ logger = logging.getLogger(__name__)
 
 class OsmApi:
     def __init__(self, instance: str = "dev"):
+        self.url_extension = '/api/0.6'
         if instance.lower() == "main":
             self.base_url = DEFAULT_OSM_URL
+            logger.info('Using osm main api')
         elif instance.lower() == "dev":
             self.base_url = DEFAULT_OSM_DEV_URL
+            logger.info('Using osm dev api')
         else:
-            self.base_url = instance
+            logger.warning('Key not found, using osm dev api..')
+            self.base_url = DEFAULT_OSM_DEV_URL
 
     def get_api_versions(self):
         """
         :returns: supported API versions
         """
-        data = requests.get(self.base_url + '/versions')
+        data = requests.get(self.base_url + '/api/versions')
         if data.ok:
             return ElemTree.fromstring(data.text).find('api/version').text
         self.__more_error(data)
@@ -33,7 +37,7 @@ class OsmApi:
         :returns:
         """
         # allowed by convenience with version
-        data = requests.get(self.base_url + '/capabilities')
+        data = requests.get(self.base_url + self.url_extension + '/capabilities')
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             capability = {}
@@ -53,7 +57,7 @@ class OsmApi:
         :param auth: either OAuth1 object or tuple (username, password)
         :returns: set of all current permissions
         """
-        data = requests.get(self.base_url + '/permissions', auth=auth)
+        data = requests.get(self.base_url + self.url_extension + '/permissions', auth=auth)
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             permissions = set()
@@ -82,7 +86,7 @@ class OsmApi:
         xml = ElemTree.tostring(root)
 
         logger.debug(xml)
-        data = requests.put(self.base_url + '/changeset/create', data=xml, auth=auth)
+        data = requests.put(self.base_url + self.url_extension + '/changeset/create', data=xml, auth=auth)
         if data.ok:
             return int(data.text)
         elif data.status_code == HTTPStatus.BAD_REQUEST:
@@ -99,7 +103,7 @@ class OsmApi:
         :returns: dictionary representation of the changeset
         :raises NoneFoundError: no changeset matching this ID
         """
-        url = self.base_url + '/changeset/{}'.format(cid)
+        url = self.base_url + self.url_extension + '/changeset/{}'.format(cid)
         if discussion:
             url += '?include_discussion=True'
         data = requests.get(url)
@@ -123,7 +127,7 @@ class OsmApi:
         self.__kv_serial(changeset.tags, cs)
         xml = ElemTree.tostring(root)
 
-        data = requests.put(self.base_url + '/changeset/{}'.format(changeset.id), data=xml, auth=auth)
+        data = requests.put(self.base_url + self.url_extension + '/changeset/{}'.format(changeset.id), data=xml, auth=auth)
         if data.ok:
             return None
         elif data.status_code == HTTPStatus.CONFLICT:
@@ -140,7 +144,7 @@ class OsmApi:
         :raises NoneFoundError: no changeset of that ID
         :raises ConflictError: other user than creator trying to use changeset / or changeset already closed.
         """
-        data = requests.get(self.base_url + '/changeset/{}/close'.format(cid), auth=auth)
+        data = requests.get(self.base_url + self.url_extension + '/changeset/{}/close'.format(cid), auth=auth)
         if data.ok:
             return None
         elif data.status_code == HTTPStatus.CONFLICT:
@@ -154,7 +158,7 @@ class OsmApi:
         :param cid: changeset ID
         :raises NoneFoundError: no changeset of that ID
         """
-        data = requests.get(self.base_url + '/changeset/{}/download'.format(cid))
+        data = requests.get(self.base_url + self.url_extension + '/changeset/{}/download'.format(cid))
         if data.ok:
             return data.text
         self.__more_error(data)
@@ -192,7 +196,7 @@ class OsmApi:
         if changesets:
             params['changesets'] = ','.join(map(str, changesets))
 
-        data = requests.get(self.base_url + '/changesets', params=params)
+        data = requests.get(self.base_url + self.url_extension + '/changesets', params=params)
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -229,7 +233,7 @@ class OsmApi:
         :param auth: either OAuth1 object or tuple (username, password)
         :returns: list with dict {type, old_id, new_id, new_version}
         """
-        data = requests.post(self.base_url + '/changeset/{}/upload'.format(cid), data=xml, auth=auth)
+        data = requests.post(self.base_url + self.url_extension + '/changeset/{}/upload'.format(cid), data=xml, auth=auth)
         if data.ok:
             changes = []
             tree = ElemTree.fromstring(data.text)
@@ -282,7 +286,7 @@ class OsmApi:
         :raises ValueError: no textfield present
         :raises ConflictError: deleted
         """
-        data = requests.post(self.base_url + '/changeset/{}/comment'.format(str(cid)),
+        data = requests.post(self.base_url + self.url_extension + '/changeset/{}/comment'.format(str(cid)),
                              data={'text': text}, auth=auth)
         logger.debug(data.text)
         if data.ok:
@@ -304,7 +308,7 @@ class OsmApi:
         :returns: ChangeSet just subscribed
         :raises ConflictError: already subscribed
         """
-        data = requests.post(self.base_url + '/changeset/{}/subscribe'.format(cid), auth=auth)
+        data = requests.post(self.base_url + self.url_extension + '/changeset/{}/subscribe'.format(cid), auth=auth)
         if data.ok:
             tree = ElemTree.fromstring(data.text).find('changeset')
             return self.__changeset_parser(tree)
@@ -321,7 +325,7 @@ class OsmApi:
         :param auth: either OAuth1 object or tuple (username, password)
         :raises NoneFoundError: is not subscribed
         """
-        data = requests.post(self.base_url + '/changeset/{}/unsubscribe'.format(cid), auth=auth)
+        data = requests.post(self.base_url + self.url_extension + '/changeset/{}/unsubscribe'.format(cid), auth=auth)
         if data.ok:
             tree = ElemTree.fromstring(data.text).find('changeset')
             return self.__changeset_parser(tree)
@@ -349,7 +353,7 @@ class OsmApi:
         """
         elem.changeset = cid
         xml = self.__serial_elem(elem, True)
-        data = requests.get(self.base_url + '/{}/create'.format(elem.e_type), data=xml, auth=auth)
+        data = requests.get(self.base_url + self.url_extension + '/{}/create'.format(elem.e_type), data=xml, auth=auth)
         if data.ok:
             return int(data.text)
         elif data.status_code == HTTPStatus.BAD_REQUEST:
@@ -370,7 +374,7 @@ class OsmApi:
         :raises NoneFoundError: No Element with such id
         :raises LockupError: Deleted Element
         """
-        data = requests.get(self.base_url + '/{}/{}'.format(e_type, eid))
+        data = requests.get(self.base_url + self.url_extension + '/{}/{}'.format(e_type, eid))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -458,7 +462,7 @@ class OsmApi:
         :raises ParseError: When a way/relation has nodes that do not exist or are not visible
         """
         elem.changeset = cid
-        data = requests.put(self.base_url + '/{}/{}'.format(elem.e_type, elem.id),
+        data = requests.put(self.base_url + self.url_extension + '/{}/{}'.format(elem.e_type, elem.id),
                             data=self.__serial_elem(elem), auth=auth)
         if data.ok:
             return int(data.text)
@@ -495,7 +499,7 @@ class OsmApi:
             When relation is still part of another relation
         """
         elem.changeset = cid
-        data = requests.delete(self.base_url + '/{}/{}'.format(elem.e_type, elem.id),
+        data = requests.delete(self.base_url + self.url_extension + '/{}/{}'.format(elem.e_type, elem.id),
                                data=self.__serial_elem(elem), auth=auth)
         if data.ok:
             return int(data.text)
@@ -517,7 +521,7 @@ class OsmApi:
         :param eid: element id
         :returns: all versions of that element
         """
-        data = requests.get(self.base_url + '/{}/{}/history'.format(e_type, eid))
+        data = requests.get(self.base_url + self.url_extension + '/{}/{}/history'.format(e_type, eid))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -536,7 +540,7 @@ class OsmApi:
         :param version: defaults to 1
         :returns: all versions of that element
         """
-        data = requests.get(self.base_url + '/{}/{}/{}'.format(e_type, eid, version))
+        data = requests.get(self.base_url + self.url_extension + '/{}/{}/{}'.format(e_type, eid, version))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -554,7 +558,7 @@ class OsmApi:
         :raises NoneFoundError: requested object never existed
         :raises MethodError: you might never try ro request more than ~700 elements at once
         """
-        data = requests.get(self.base_url + '/{}s?{}s={}'.format(e_type, e_type, ','.join(map(str, lst_eid))))
+        data = requests.get(self.base_url + self.url_extension + '/{}s?{}s={}'.format(e_type, e_type, ','.join(map(str, lst_eid))))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -578,7 +582,7 @@ class OsmApi:
         :returns: relations containing this element
         :raises NoneFoundError: no such element or no relations containing this element
         """
-        data = requests.get(self.base_url + '/{}/{}/relations'.format(e_type, eid))
+        data = requests.get(self.base_url + self.url_extension + '/{}/{}/relations'.format(e_type, eid))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -598,7 +602,7 @@ class OsmApi:
         :returns: ways directly using this node
         :raises NoneFoundError: no connected ways found
         """
-        data = requests.get(self.base_url + '/node/{}/ways'.format(eid))
+        data = requests.get(self.base_url + self.url_extension + '/node/{}/ways'.format(eid))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -618,7 +622,7 @@ class OsmApi:
         :returns: all Elements with minimum one Node within this BoundingBox
         :raise NoneFoundError: either none or over 50.000 elements are found
         """
-        data = requests.get(self.base_url + '/map?bbox={}'.format(','.join(map(str, bbox))))
+        data = requests.get(self.base_url + self.url_extension + '/map?bbox={}'.format(','.join(map(str, bbox))))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -639,7 +643,7 @@ class OsmApi:
         :returns: elements referenced up to 2nd grade with element
         :raises NoneFoundError: eid not found / element deleted
         """
-        data = requests.get(self.base_url + '/{}/{}/full'.format(e_type, eid))
+        data = requests.get(self.base_url + self.url_extension + '/{}/{}/full'.format(e_type, eid))
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             logger.debug(data.text)
@@ -661,7 +665,7 @@ class OsmApi:
         :param page: 5000 trackpoints are returned each page
         :returns: format GPX Version 1.0 string
         """
-        data = requests.get(self.base_url + '/trackpoints', params={'bbox': ','.join(map(str, bbox)), 'page': page})
+        data = requests.get(self.base_url + self.url_extension + '/trackpoints', params={'bbox': ','.join(map(str, bbox)), 'page': page})
         if data.ok:
             return data.text
         self.__more_error(data)
@@ -683,7 +687,7 @@ class OsmApi:
         """
         content = {'description': description, 'tags': ','.join(tags), 'visibility': visibility}
         req_file = {'file': (name, trace)}
-        data = requests.post(self.base_url + '/gpx/create', auth=auth, files=req_file, data=content)
+        data = requests.post(self.base_url + self.url_extension + '/gpx/create', auth=auth, files=req_file, data=content)
         if data.ok:
             return int(data.text)
         self.__more_error(data)
@@ -705,7 +709,7 @@ class OsmApi:
         """
         content = {'description': description, 'tags': ','.join(tags), 'public': public, 'visibility': visibility}
         req_file = {'file': ('test-trace.gpx', trace)}
-        data = requests.put(self.base_url + '/gpx/' + str(tid), auth=auth, files=req_file, data=content)
+        data = requests.put(self.base_url + self.url_extension + '/gpx/' + str(tid), auth=auth, files=req_file, data=content)
         if data.ok:
             logger.debug('updated')
         else:
@@ -720,7 +724,7 @@ class OsmApi:
         :param tid: trace ID
         :param auth: either OAuth1 object or tuple (username, password)
         """
-        data = requests.delete(self.base_url + '/gpx/' + str(tid), auth=auth)
+        data = requests.delete(self.base_url + self.url_extension + '/gpx/' + str(tid), auth=auth)
         if data.ok:
             logger.debug('deleted')
             return None
@@ -737,7 +741,7 @@ class OsmApi:
         :param auth: either OAuth1 object or tuple (username, password)
         :returns: dict with metadata
         """
-        data = requests.get(self.base_url + '/gpx/{}/details'.format(tid), auth=auth)
+        data = requests.get(self.base_url + self.url_extension + '/gpx/{}/details'.format(tid), auth=auth)
         if data.ok:
             logger.debug(data.text)
             tree = ElemTree.fromstring(data.text)
@@ -760,7 +764,7 @@ class OsmApi:
         :param auth: either OAuth1 object or tuple (username, password)
         :returns: the full gpx file as a string
         """
-        data = requests.get(self.base_url + '/gpx/{}/data'.format(tid), auth=auth)
+        data = requests.get(self.base_url + self.url_extension + '/gpx/{}/data'.format(tid), auth=auth)
         if data.ok:
             return data.text
         self.__more_error(data)
@@ -773,7 +777,7 @@ class OsmApi:
         :param auth: either OAuth1 object or tuple (username, password)
         :returns: list of dictionary representing the metadata
         """
-        data = requests.get(self.base_url + '/user/gpx_files', auth=auth)
+        data = requests.get(self.base_url + self.url_extension + '/user/gpx_files', auth=auth)
         if data.ok:
             return self.__parse_gpx_info(data.text)
         self.__more_error(data)
@@ -798,7 +802,7 @@ class OsmApi:
         :param uid: user ID
         :returns: dictionary with user detail
         """
-        data = requests.get(self.base_url + '/user/' + str(uid))
+        data = requests.get(self.base_url + self.url_extension + '/user/' + str(uid))
         if data.ok:
             return self.__parse_user(data.text)[0]
         self.__more_error(data)
@@ -810,7 +814,7 @@ class OsmApi:
         :param uids: uid in a list
         :returns: list of dictionary with user detail
         """
-        data = requests.get(self.base_url + '/users?users=' + ','.join(map(str, uids)))
+        data = requests.get(self.base_url + self.url_extension + '/users?users=' + ','.join(map(str, uids)))
         if data.ok:
             logger.debug(data.text)
             return self.__parse_user(data.text)
@@ -824,7 +828,7 @@ class OsmApi:
         :param auth: either OAuth1 object or tuple (username, password)
         :returns: dictionary with user detail
         """
-        data = requests.get(self.base_url + '/user/details', auth=auth)
+        data = requests.get(self.base_url + self.url_extension + '/user/details', auth=auth)
         if data.ok:
             return self.__parse_user(data.text)[0]
         self.__more_error(data)
@@ -850,7 +854,7 @@ class OsmApi:
         :param auth: either OAuth1 object or tuple (username, password)
         :returns: dictionary with preferences
         """
-        data = requests.get(self.base_url + '/user/preferences', auth=auth)
+        data = requests.get(self.base_url + self.url_extension + '/user/preferences', auth=auth)
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             return self.__kv_parser(tree.findall('preferences/preference'))
@@ -870,7 +874,7 @@ class OsmApi:
             ElemTree.SubElement(prefs, 'preference', {'k': key, 'v': value})
         data = ElemTree.tostring(root).decode()
         print(data)
-        ret = requests.put(self.base_url + '/user/preferences', data=data, auth=auth)
+        ret = requests.put(self.base_url + self.url_extension + '/user/preferences', data=data, auth=auth)
         if ret.ok:
             return None
         self.__more_error(ret)
@@ -886,7 +890,7 @@ class OsmApi:
         :param key: key of preference
         :returns: value
         """
-        data = requests.get(self.base_url + '/user/preferences/{}'.format(key), auth=auth)
+        data = requests.get(self.base_url + self.url_extension + '/user/preferences/{}'.format(key), auth=auth)
         if data.ok:
             return data.text
         self.__more_error(data)
@@ -900,7 +904,7 @@ class OsmApi:
         :param value: new value
         :param auth: either OAuth1 object or tuple (username, password)
         """
-        data = requests.put(self.base_url + '/user/preferences/{}'.format(key), data=value, auth=auth)
+        data = requests.put(self.base_url + self.url_extension + '/user/preferences/{}'.format(key), data=value, auth=auth)
         if data.ok:
             return None
         self.__more_error(data)
@@ -913,7 +917,7 @@ class OsmApi:
         :param key: key of preference
         :param auth: either OAuth1 object or tuple (username, password)
         """
-        data = requests.delete(self.base_url + '/user/preferences/{}'.format(key), auth=auth)
+        data = requests.delete(self.base_url + self.url_extension + '/user/preferences/{}'.format(key), auth=auth)
         if data.ok:
             return None
         self.__more_error(data)
@@ -955,7 +959,7 @@ class OsmApi:
         :returns: list of Notes
         :raises ValueError: When any of the limits are crossed
         """
-        data = requests.get(self.base_url + '/notes', params={'bbox': ','.join(map(str, bbox)),
+        data = requests.get(self.base_url + self.url_extension + '/notes', params={'bbox': ','.join(map(str, bbox)),
                                                               'limit': limit, 'closed': closed})
         logger.debug(data.text)
         if data.ok:
@@ -973,7 +977,7 @@ class OsmApi:
         :return: the identified Note
         :raises NoneFoundError: note ID not found
         """
-        data = requests.get(self.base_url + '/notes/{}'.format(str(nid)))
+        data = requests.get(self.base_url + self.url_extension + '/notes/{}'.format(str(nid)))
         logger.debug(data.text)
         if data.ok:
             tree = ElemTree.fromstring(data.text)
@@ -994,7 +998,7 @@ class OsmApi:
         :returns: note ID
         :raises ValueError: No text field
         """
-        data = requests.post(self.base_url + '/notes', params={'lat': lat, 'lon': lon, 'text': text}, auth=auth)
+        data = requests.post(self.base_url + self.url_extension + '/notes', params={'lat': lat, 'lon': lon, 'text': text}, auth=auth)
         logger.debug(data.text)
         if data.ok:
             tree = ElemTree.fromstring(data.text)
@@ -1016,7 +1020,7 @@ class OsmApi:
         :raises NoneFoundError: note ID not found
         :raises ConflictError: already closed Note
         """
-        data = requests.post(self.base_url + '/notes/{}/comment'.format(str(nid)),
+        data = requests.post(self.base_url + self.url_extension + '/notes/{}/comment'.format(str(nid)),
                              params={'text': text}, auth=auth)
         logger.debug(data.text)
         if data.ok:
@@ -1040,7 +1044,7 @@ class OsmApi:
         :raises NoneFoundError: note ID not found
         :raises ConflictError: already closed Note
         """
-        data = requests.post(self.base_url + '/notes/{}/close'.format(str(nid)),
+        data = requests.post(self.base_url + self.url_extension + '/notes/{}/close'.format(str(nid)),
                              params={'text': text}, auth=auth)
         logger.debug(data.text)
         if data.ok:
@@ -1065,7 +1069,7 @@ class OsmApi:
         :raises ConflictError: already closed Note
         :raises LookupError: deleted Note
         """
-        data = requests.post(self.base_url + '/notes/{}/close'.format(str(nid)),
+        data = requests.post(self.base_url + self.url_extension + '/notes/{}/close'.format(str(nid)),
                              params={'text': text}, auth=auth)
         logger.debug(data.text)
         if data.ok:
@@ -1106,7 +1110,7 @@ class OsmApi:
         if end:
             params['to'] = end.isoformat()
 
-        data = requests.get(self.base_url + '/notes/search', params=params)
+        data = requests.get(self.base_url + self.url_extension + '/notes/search', params=params)
         if data.ok:
             tree = ElemTree.fromstring(data.text)
             return self.__parse_notes(tree)
@@ -1122,7 +1126,7 @@ class OsmApi:
         :return: xml RSS feed
         """
         params = {'bbox': ','.join(map(str, bbox))}
-        data = requests.get(self.base_url + '/notes/feed', params=params)
+        data = requests.get(self.base_url + self.url_extension + '/notes/feed', params=params)
         if data.ok:
             return data.text
         self.__more_error(data)
