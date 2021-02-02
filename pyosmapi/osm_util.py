@@ -2,8 +2,8 @@ import json
 import math
 from datetime import datetime
 
-OSM_URL = 'https://master.apis.dev.openstreetmap.org'
-
+DEFAULT_OSM_DEV_URL = 'https://master.apis.dev.openstreetmap.org'
+DEFAULT_OSM_URL = 'https://api.openstreetmap.org'
 
 class Element:
     def __init__(self, eid: int, version: int, changeset: int,
@@ -146,10 +146,6 @@ class Trace:
     @property
     def id(self):
         return self._id
-
-    @staticmethod
-    def url(osm_user, tid):
-        return OSM_URL + '/user/' + osm_user + '/traces/' + tid
 
 
 class ChangeSet:
