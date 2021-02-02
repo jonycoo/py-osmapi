@@ -12,12 +12,12 @@ class OsmApi:
     """
     Connects to the OSM API to get or change data.
 
-    for param instance use either
-    `dev <https://master.apis.dev.openstreetmap.org>`_ or `main <https://api.openstreetmap.org>`_  API
-
+    :param instance: keywords dev and main are mapped to the official osm.org  or set a custom url
+    :param url_extension: path to the api defaults to '/api/6.0'
     """
-    def __init__(self, instance: str = "dev"):
-        self.url_extension = '/api/0.6'
+
+    def __init__(self, instance: str = "dev", url_extension: str = "/api/0.6"):
+        self.url_extension = url_extension
         if instance.lower() == "main":
             self.base_url = DEFAULT_OSM_URL
             logger.info('Using osm main api')
@@ -25,8 +25,8 @@ class OsmApi:
             self.base_url = DEFAULT_OSM_DEV_URL
             logger.info('Using osm dev api')
         else:
-            logger.warning('Key not found, using osm dev api..')
-            self.base_url = DEFAULT_OSM_DEV_URL
+            self.base_url = instance
+            logger. info(f'Using custom instance: {instance}{url_extension}')
 
     def get_api_versions(self):
         """

@@ -6,7 +6,7 @@ import pyosmapi.osm_util
 
 
 class MyTestCase(unittest.TestCase):
-    osmo = osmapi.OsmApi()
+    osmo = osmapi.OsmApi('dev')
 
     def auth(self):
         try:
