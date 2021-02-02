@@ -12,6 +12,9 @@ class OsmApi:
     """
     Connects to the OSM API to get or change data.
 
+    def __init__(self, live: bool = False):
+        if live:
+            self.base_url = 'https://api.openstreetmap.org/api/0.6'
     :param instance: keywords dev and main are mapped to the official osm.org  or set a custom url
     :param url_extension: path to the api defaults to '/api/6.0'
     """

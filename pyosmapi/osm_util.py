@@ -2,9 +2,7 @@ import json
 import math
 from datetime import datetime
 
-
-DEFAULT_OSM_DEV_URL = 'https://master.apis.dev.openstreetmap.org'
-DEFAULT_OSM_URL = 'https://api.openstreetmap.org'
+OSM_URL = 'https://master.apis.dev.openstreetmap.org'
 
 
 class Element:
